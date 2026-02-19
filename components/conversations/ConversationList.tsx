@@ -1,0 +1,97 @@
+"use client";
+
+import { useSession } from "next-auth/react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import clsx from "clsx";
+import { MdOutlineGroupAdd } from "react-icons/md";
+import ConversationBox from "./ConversationBox";
+// I need proper type import
+import { IConversation } from "@/app/models/Conversation";
+import { useAppDispatch, useAppSelector } from "@/app/hooks/useRedux"; // Will create this
+import { setConversations } from "@/app/hooks/chatSlice";
+import { getSocket } from "@/app/lib/socket";
+
+import { useParams } from "next/navigation";
+
+// ...
+
+interface ConversationListProps {
+  initialItems: IConversation[];
+}
+
+const ConversationList: React.FC<ConversationListProps> = ({
+  initialItems,
+}) => {
+  const [items, setItems] = useState(initialItems);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const router = useRouter();
+  const session = useSession();
+  const socket = getSocket();
+  const params = useParams();
+
+  const conversationId = useMemo(() => {
+    if (!params?.conversationId) {
+      return "";
+    }
+    return params.conversationId as string;
+  }, [params?.conversationId]);
+
+  useEffect(() => {
+    if (!socket.connected) socket.connect();
+    
+    socket.on("new-conversation", (conversation: IConversation) => {
+        setItems((current) => {
+            if (current.find((item) => item._id === conversation._id)) {
+                return current;
+            }
+            return [conversation, ...current];
+        });
+    });
+
+    return () => {
+        socket.off("new-conversation");
+    }
+  }, [socket]);
+
+  return (
+    <aside
+      className={clsx(
+        `
+        fixed 
+        inset-y-0 
+        pb-20
+        lg:pb-0
+        lg:left-20 
+        lg:w-80 
+        lg:block
+        overflow-y-auto 
+        border-r 
+        border-gray-200 
+      `,
+        // isOpen ? "hidden" : "block w-full left-0" // Add responsive logic later
+        "block w-full left-0"
+      )}
+    >
+      <div className="px-5">
+        <div className="flex justify-between mb-4 pt-4">
+          <div className="text-2xl font-bold text-neutral-800">Messages</div>
+          <div
+            onClick={() => setIsModalOpen(true)}
+            className="rounded-full p-2 bg-gray-100 text-gray-600 cursor-pointer hover:opacity-75 transition"
+          >
+            <MdOutlineGroupAdd size={20} />
+          </div>
+        </div>
+        {items.map((item) => (
+          <ConversationBox
+            key={(item._id as any).toString()}
+            data={item}
+            selected={conversationId === (item._id as any).toString()}
+          />
+        ))}
+      </div>
+    </aside>
+  );
+};
+export default ConversationList;
