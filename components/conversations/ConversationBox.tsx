@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, memo } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { useSession } from "next-auth/react";
@@ -15,7 +15,7 @@ interface ConversationBoxProps {
   selected?: boolean;
 }
 
-const ConversationBox: React.FC<ConversationBoxProps> = ({
+const ConversationBox: React.FC<ConversationBoxProps> = memo(({
   data,
   selected,
 }) => {
@@ -105,6 +105,8 @@ const ConversationBox: React.FC<ConversationBoxProps> = ({
       </div>
     </div>
   );
-};
+});
+
+ConversationBox.displayName = "ConversationBox";
 
 export default ConversationBox;

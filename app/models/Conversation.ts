@@ -41,6 +41,10 @@ const ConversationSchema: Schema<IConversation> = new Schema(
   { timestamps: true }
 );
 
+// Add indexes for performance
+ConversationSchema.index({ users: 1, lastMessageAt: -1 });
+ConversationSchema.index({ lastMessageAt: -1 });
+
 const Conversation: Model<IConversation> =
   mongoose.models.Conversation ||
   mongoose.model<IConversation>("Conversation", ConversationSchema);

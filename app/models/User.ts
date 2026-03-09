@@ -55,6 +55,9 @@ const UserSchema: Schema<IUser> = new Schema(
   { timestamps: true }
 );
 
+// Add index for bio searching if needed, but email is already unique
+UserSchema.index({ name: 1 });
+
 const User: Model<IUser> =
   mongoose.models.User || mongoose.model<IUser>("User", UserSchema);
 

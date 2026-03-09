@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+import { memo } from "react";
 import { useSession } from "next-auth/react";
 import clsx from "clsx";
 import { format } from "date-fns";
@@ -12,7 +14,7 @@ interface MessageBoxProps {
   isLast?: boolean;
 }
 
-const MessageBox: React.FC<MessageBoxProps> = ({ data, isLast }) => {
+const MessageBox: React.FC<MessageBoxProps> = memo(({ data, isLast }) => {
   const session = useSession();
   
   const isOwn = session?.data?.user?.email === (data.senderId as any)?.email;
@@ -74,5 +76,7 @@ const MessageBox: React.FC<MessageBoxProps> = ({ data, isLast }) => {
       </div>
     </div>
   );
-};
+});
+
+MessageBox.displayName = "MessageBox";
 export default MessageBox;

@@ -22,14 +22,15 @@ const getConversations = async (): Promise<IConversation[]> => {
       users: user._id,
     })
       .sort({ lastMessageAt: -1 })
-      .populate("users")
+      .populate("users", "name image email bio") // Select specific fields for lean performance
       .populate({
         path: "lastMessage",
         populate: {
-          path: "senderIds", // Actually senderId on Message
+          path: "senderId", // Corrected senderIds -> senderId based on Message model
           select: "name email image",
         },
-      });
+      })
+      .lean(); // Use lean for faster queries
 
     return conversations as unknown as IConversation[];
   } catch (error) {
