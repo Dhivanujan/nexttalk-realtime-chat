@@ -60,30 +60,33 @@ const ConversationBox: React.FC<ConversationBoxProps> = ({
         items-center 
         space-x-3 
         p-3 
-        hover:bg-neutral-100
-        rounded-lg
+        hover:bg-accent/50
+        rounded-xl
         transition
         cursor-pointer
+        border
         `,
-        selected ? "bg-neutral-100" : "bg-white"
+        selected ? "bg-accent border-primary/20" : "bg-card border-transparent hover:border-border"
       )}
     >
-      <Avatar>
-        <AvatarImage
-          src={otherUser?.image || "/images/placeholder.jpg"}
-        />
-        <AvatarFallback>{otherUser?.name?.[0]}</AvatarFallback>
-      </Avatar>
+      <div className="relative">
+        <Avatar>
+          <AvatarImage
+            src={(otherUser as any)?.image || "/images/placeholder.jpg"}
+          />
+          <AvatarFallback className="bg-primary/10 text-primary">{(otherUser as any)?.name?.[0]}</AvatarFallback>
+        </Avatar>
+        {/* Online status dot can be added here */}
+      </div>
       <div className="min-w-0 flex-1">
         <div className="focus:outline-none">
-          <span className="absolute inset-0" aria-hidden="true" />
           <div className="flex justify-between items-center mb-1">
-            <p className="text-md font-medium text-gray-900">
-              {data.name || otherUser?.name}
+            <p className={clsx("text-md font-medium", selected ? "text-primary" : "text-foreground")}>
+              {(data as any).name || (otherUser as any)?.name}
             </p>
-            {data.lastMessageAt && (
-              <p className="text-xs text-gray-400 font-light">
-                {format(new Date(data.lastMessageAt), "p")}
+            {(data as any).lastMessageAt && (
+              <p className="text-xs text-muted-foreground font-light">
+                {format(new Date((data as any).lastMessageAt), "p")}
               </p>
             )}
           </div>
@@ -93,8 +96,7 @@ const ConversationBox: React.FC<ConversationBoxProps> = ({
               truncate 
               text-sm
               `,
-              // hasSeen ? 'text-gray-500' : 'text-black font-medium'
-              "text-gray-500"
+              selected ? "text-primary/80" : "text-muted-foreground"
             )}
           >
             {lastMessageText}

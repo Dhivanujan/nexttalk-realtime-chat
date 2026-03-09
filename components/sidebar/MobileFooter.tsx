@@ -20,8 +20,10 @@ const MobileFooter = () => {
         z-40 
         flex 
         items-center 
-        bg-white 
-        border-t-[1px] 
+        bg-background/80 
+        backdrop-blur-md
+        border-t
+        border-border
         lg:hidden
       "
     >

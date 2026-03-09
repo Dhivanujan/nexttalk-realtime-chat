@@ -11,7 +11,7 @@ const DesktopSidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:w-20 lg:flex-col lg:overflow-y-auto lg:bg-white lg:border-r-[1px] lg:pb-4 xl:px-6">
+    <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:w-20 lg:flex-col lg:overflow-y-auto lg:bg-background lg:border-r border-border lg:pb-4 xl:px-6 shadow-sm">
       <nav className="mt-4 flex flex-col justify-between h-full">
         <ul role="list" className="flex flex-col items-center space-y-1">
           {routes.map((item) => (

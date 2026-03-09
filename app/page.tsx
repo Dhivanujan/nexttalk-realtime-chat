@@ -17,8 +17,10 @@ export default function Home() {
   }, [status, router]);
 
   return (
-    <div className="flex items-center justify-center h-screen">
-      Loading...
+    <div className="flex items-center justify-center h-screen bg-background">
+      <div className="text-primary font-semibold text-lg animate-pulse">
+        NX Talk
+      </div>
     </div>
   );
 }

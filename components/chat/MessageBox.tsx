@@ -25,9 +25,9 @@ const MessageBox: React.FC<MessageBoxProps> = ({ data, isLast }) => {
   const avatar = clsx(isOwn && "order-2");
   const body = clsx("flex flex-col gap-2", isOwn && "items-end");
   const message = clsx(
-    "text-sm w-fit overflow-hidden",
-    isOwn ? "bg-sky-500 text-white" : "bg-gray-100",
-    data.image ? "rounded-md p-0" : "rounded-full py-2 px-3"
+    "text-sm w-fit overflow-hidden shadow-sm",
+    isOwn ? "bg-gradient-to-br from-primary to-purple-600 text-white dark:text-gray-100" : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 border border-gray-100 dark:border-gray-700",
+    data.image ? "rounded-xl p-0" : "rounded-2xl py-2 px-4 shadow-sm"
   );
 
   return (

@@ -27,10 +27,12 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ conversation }) => {
   return (
     <div
       className="
-        bg-white 
+        bg-background/80 
+        backdrop-blur-md
         w-full 
         flex 
-        border-b-[1px] 
+        border-b
+        border-border
         sm:px-4 
         py-3 
         px-4 
@@ -38,6 +40,9 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ conversation }) => {
         justify-between 
         items-center 
         shadow-sm
+        sticky
+        top-0
+        z-30
       "
     >
       <div className="flex gap-3 items-center">
@@ -46,8 +51,14 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ conversation }) => {
           className="
             lg:hidden 
             block 
-            text-sky-500 
-            hover:text-sky-600 
+            text-primary 
+            hover:text-primary/80 
+            transition 
+            cursor-pointer
+          "
+        >
+          <ChevronLeft size={32} />
+        </Link> 
             transition 
             cursor-pointer
           "

@@ -34,14 +34,16 @@ const DesktopItem = ({ label, icon: Icon, href, onClick, active }: DesktopItemPr
         text-sm 
         leading-6 
         font-semibold 
-        text-gray-500 
-        hover:text-black 
-        hover:bg-gray-100
+        text-muted-foreground 
+        hover:text-primary 
+        hover:bg-primary/5
+        transition-all
+        duration-200
       `,
-          active && "bg-gray-100 text-black"
+          active && "bg-primary/10 text-primary"
         )}
       >
-        <Icon className="h-6 w-6 shrink-0" />
+        <Icon className={clsx("h-6 w-6 shrink-0 group-hover:scale-110 transition-transform", active && "text-primary")} />
         <span className="sr-only">{label}</span>
       </Link>
     </li>

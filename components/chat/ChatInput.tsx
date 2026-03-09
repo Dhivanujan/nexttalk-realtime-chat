@@ -51,8 +51,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ conversationId }) => {
       className="
         py-4 
         px-4 
-        bg-white 
-        border-t 
+        bg-background/80
+        backdrop-blur-md 
+        border-t
+        border-border
         flex 
         items-center 
         gap-2 
@@ -65,7 +67,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ conversationId }) => {
         onUpload={handleUpload}
         uploadPreset="nexttalk_preset"
       >
-        <HiPhoto size={30} className="text-sky-500" />
+        <HiPhoto size={30} className="text-primary hover:text-primary/80 transition cursor-pointer" />
       </CldUploadButton>
       <form
         onSubmit={handleSubmit(onSubmit)}
@@ -83,9 +85,9 @@ const ChatInput: React.FC<ChatInputProps> = ({ conversationId }) => {
           className="
             rounded-full 
             p-2 
-            bg-sky-500 
+            bg-primary 
             cursor-pointer 
-            hover:bg-sky-600 
+            hover:bg-primary/90 
             transition
           "
         >

@@ -67,7 +67,8 @@ const ConversationList: React.FC<ConversationListProps> = ({
         lg:block
         overflow-y-auto 
         border-r 
-        border-gray-200 
+        border-border 
+        bg-background
       `,
         // isOpen ? "hidden" : "block w-full left-0" // Add responsive logic later
         "block w-full left-0"
@@ -75,21 +76,23 @@ const ConversationList: React.FC<ConversationListProps> = ({
     >
       <div className="px-5">
         <div className="flex justify-between mb-4 pt-4">
-          <div className="text-2xl font-bold text-neutral-800">Messages</div>
+          <div className="text-2xl font-bold text-foreground">Messages</div>
           <div
             onClick={() => setIsModalOpen(true)}
-            className="rounded-full p-2 bg-gray-100 text-gray-600 cursor-pointer hover:opacity-75 transition"
+            className="rounded-full p-2 bg-secondary text-secondary-foreground cursor-pointer hover:opacity-75 transition"
           >
             <MdOutlineGroupAdd size={20} />
           </div>
         </div>
-        {items.map((item) => (
-          <ConversationBox
-            key={(item._id as any).toString()}
-            data={item}
-            selected={conversationId === (item._id as any).toString()}
-          />
-        ))}
+        <div className="flex flex-col gap-2">
+          {items.map((item) => (
+            <ConversationBox
+              key={(item._id as any).toString()}
+              data={item}
+              selected={conversationId === (item._id as any).toString()}
+            />
+          ))}
+        </div>
       </div>
     </aside>
   );
