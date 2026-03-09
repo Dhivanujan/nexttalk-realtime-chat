@@ -32,8 +32,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ conversationId }) => {
     axios.post("/api/messages", {
       ...data,
       conversationId,
-    }).then((response) => {
-        socket.emit("send-message", response.data);
     });
   };
 
@@ -41,8 +39,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ conversationId }) => {
     axios.post("/api/messages", {
       image: result?.info?.secure_url,
       conversationId,
-    }).then((response) => {
-        socket.emit("send-message", response.data);
     });
   };
 

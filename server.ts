@@ -19,6 +19,8 @@ app.prepare().then(() => {
     },
   });
 
+  (global as any).io = io; // Expose io globally for API routes
+
   const onlineUsers = new Map();
 
   io.on("connection", (socket) => {

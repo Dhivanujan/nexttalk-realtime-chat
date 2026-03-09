@@ -37,9 +37,33 @@ export async function POST(request: Request) {
       { new: true }
     );
 
-    // If using Pusher, trigger event here.
-    // For Socket.io, we rely on client emitting or global.io hack.
-    // We'll return the message so client can emit it.
+    // Get io instance from global and emit
+    const io = (global as any).io;
+    if (io) {
+      io.to(conversationId).emit("receive-message", newMessage);
+    }
+    
+    // Also update conversation list for all users in conversation
+    const conversation = await Conversation.findById(conversationId)
+      .populate("users")
+      .populate({
+        path: "lastMessage",
+        populate: {
+          path: "senderId", // Populate senderId on Message
+          select: "name email image",
+        },
+      });
+
+    if (io && conversation) {
+      conversation.users.forEach((user: any) => {
+        if (user.email) {
+            // We need a stable identifier for user socket rooms. Usually user ID or email.
+            // In server.ts: socket.on("register-user", (userId) => { socket.join(userId); ... });
+            // So we can emit to user ID room.
+            io.to(user._id.toString()).emit("new-conversation", conversation);
+        }
+      });
+    }
 
     return NextResponse.json(newMessage);
   } catch (error) {
