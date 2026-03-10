@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { MdOutlineGroupAdd } from "react-icons/md";
 import ConversationBox from "./ConversationBox";
+import GroupChatModal from "@/components/modals/GroupChatModal";
+import { IUser } from "@/app/models/User";
 // I need proper type import
 import { IConversation } from "@/app/models/Conversation";
 import { useAppDispatch, useAppSelector } from "@/app/hooks/useRedux"; // Will create this
@@ -18,10 +20,12 @@ import { useParams } from "next/navigation";
 
 interface ConversationListProps {
   initialItems: IConversation[];
+  users: IUser[];
 }
 
 const ConversationList: React.FC<ConversationListProps> = ({
   initialItems,
+  users
 }) => {
   const [items, setItems] = useState(initialItems);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -55,8 +59,14 @@ const ConversationList: React.FC<ConversationListProps> = ({
   }, [socket]);
 
   return (
-    <aside
-      className={clsx(
+    <>
+      <GroupChatModal 
+        users={users} 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+      />
+      <aside
+        className={clsx(
         `
         fixed 
         inset-y-0 
@@ -88,7 +98,8 @@ const ConversationList: React.FC<ConversationListProps> = ({
           {items.map((item) => (
             <ConversationBox
               key={(item._id as any).toString()}
-              data={item}
+      </aside>
+    </   data={item}
               selected={conversationId === (item._id as any).toString()}
             />
           ))}

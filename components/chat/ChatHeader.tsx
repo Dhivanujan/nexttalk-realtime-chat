@@ -58,12 +58,6 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ conversation }) => {
           "
         >
           <ChevronLeft size={32} />
-        </Link> 
-            transition 
-            cursor-pointer
-          "
-        >
-          <ChevronLeft size={32} />
         </Link>
         <Avatar>
           <AvatarImage src={otherUser?.image || ""} />
