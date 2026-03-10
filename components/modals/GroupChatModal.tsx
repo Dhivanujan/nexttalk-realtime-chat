@@ -1,6 +1,5 @@
-The following files were successfully edited:"use client";
+"use client";
 
-e:\Chat Application\components\modals\GroupChatModal.tsx
 import { IUser } from "@/app/models/User";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -71,10 +70,10 @@ const GroupChatModal: React.FC<GroupChatModalProps> = ({
                              <label className="block text-sm font-medium leading-6 text-foreground">Members</label>
                              <div className="mt-2 flex flex-col gap-2 max-h-60 overflow-y-auto">
                                 {users.map((user) => (
-                                    <div key={user._id as string} className="flex items-center gap-2">
+                                    <div key={(user._id as any).toString()} className="flex items-center gap-2">
                                         <input 
                                             type="checkbox" 
-                                            value={user._id as string}
+                                            value={(user._id as any).toString()}
                                             {...register('members', { required: true, validate: (value) => value.length >= 2 || "Select at least 2 members" })}
                                             className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                                         />

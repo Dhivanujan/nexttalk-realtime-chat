@@ -4,7 +4,7 @@ import { Server } from "socket.io";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "localhost";
-const port = 3000;
+const port = parseInt(process.env.PORT || "3000", 10);
 // when using middleware `hostname` and `port` must be provided below
 const app = next({ dev, hostname, port });
 const handler = app.getRequestHandler();
@@ -26,11 +26,30 @@ app.prepare().then(() => {
   io.on("connection", (socket) => {
     console.log("A user connected:", socket.id);
 
+    // Initial emit of online users
+    socket.emit("online-users", Array.from(onlineUsers.keys()));
+
     socket.on("register-user", (userId) => {
       onlineUsers.set(userId, socket.id);
       socket.join(userId); // Join personal room for notifications
       io.emit("online-users", Array.from(onlineUsers.keys()));
       console.log(`User registered: ${userId}`);
+    });
+
+    socket.on("disconnect", () => {
+      console.log("User disconnected:", socket.id);
+      // Find userId for socket.id and remove
+      let userIdToRemove;
+      for (const [userId, socketId] of onlineUsers.entries()) {
+        if (socketId === socket.id) {
+          userIdToRemove = userId;
+          break;
+        }
+      }
+      if (userIdToRemove) {
+        onlineUsers.delete(userIdToRemove);
+        io.emit("online-users", Array.from(onlineUsers.keys()));
+      }
     });
 
     socket.on("join-room", (roomId) => {

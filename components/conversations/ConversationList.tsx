@@ -11,7 +11,7 @@ import { IUser } from "@/app/models/User";
 // I need proper type import
 import { IConversation } from "@/app/models/Conversation";
 import { useAppDispatch, useAppSelector } from "@/app/hooks/useRedux"; // Will create this
-import { setConversations } from "@/app/hooks/chatSlice";
+import { setConversations, setOnlineUsers } from "@/app/hooks/chatSlice";
 import { getSocket } from "@/app/lib/socket";
 
 import { useParams } from "next/navigation";
@@ -33,6 +33,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
   const session = useSession();
   const socket = getSocket();
   const params = useParams();
+  const dispatch = useAppDispatch();
 
   const conversationId = useMemo(() => {
     if (!params?.conversationId) {
@@ -42,21 +43,47 @@ const ConversationList: React.FC<ConversationListProps> = ({
   }, [params?.conversationId]);
 
   useEffect(() => {
-    if (!socket.connected) socket.connect();
+    if (!session?.data?.user) {
+      return;
+    }
+
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    // Register user for private room
+    const userId = (session.data.user as any).id;
+    if (userId) {
+      socket.emit("register-user", userId);
+    }
     
     socket.on("new-conversation", (conversation: IConversation) => {
         setItems((current) => {
-            if (current.find((item) => item._id === conversation._id)) {
-                return current;
+            const hasConversation = current.find((item) => 
+              (item._id as any).toString() === (conversation._id as any).toString()
+            );
+
+            if (hasConversation) {
+                // If it exists, update it by filtering out old and adding new to top
+                const filtered = current.filter((item) => 
+                  (item._id as any).toString() !== (conversation._id as any).toString()
+                );
+                return [conversation, ...filtered];
             }
+
             return [conversation, ...current];
         });
     });
 
+    sodispatch(setOnlineUsers(userIds));
+    });
+
     return () => {
         socket.off("new-conversation");
+        socket.off("online-users");
     }
-  }, [socket]);
+  }, [socket, session?.data?.user, dispatch
+  }, [socket, session?.data?.user]);
 
   return (
     <>
@@ -98,14 +125,14 @@ const ConversationList: React.FC<ConversationListProps> = ({
           {items.map((item) => (
             <ConversationBox
               key={(item._id as any).toString()}
-      </aside>
-    </   data={item}
+              data={item}
               selected={conversationId === (item._id as any).toString()}
             />
           ))}
         </div>
       </div>
     </aside>
+    </>
   );
 };
 export default ConversationList;

@@ -24,6 +24,10 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   image: { type: String, default: "" },
+  emailVerified: { type: Date, default: null },
+  isOnline: { type: Boolean, default: false },
+  lastSeen: { type: Date, default: Date.now },
+  conversations: [{ type: mongoose.Schema.Types.ObjectId, ref: "Conversation" }],
 });
 
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
@@ -46,6 +50,7 @@ async function seed() {
         email: "alice@example.com",
         password: hashedPassword,
         image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alice",
+        conversations: [],
       },
       {
         name: "Bob Smith",

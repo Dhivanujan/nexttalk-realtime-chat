@@ -1,6 +1,4 @@
-The following files were successfully edited:import { NextResponse } from "next/server";
-
-e:\Chat Application\app\api\conversations\route.ts
+import { NextResponse } from "next/server";
 import connectToDatabase from "@/app/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
@@ -55,6 +53,10 @@ export async function POST(
       // Populate users
       const populatedConversation = await Conversation.findById(newConversation._id)
         .populate('users');
+
+      if (!populatedConversation) {
+        return new NextResponse("Conversation not found", { status: 404 });
+      }
 
       // Socket emission
       const io = (global as any).io;
