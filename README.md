@@ -1,48 +1,48 @@
-# NextTalk - WhatsApp Clone
+# NextTalk - Modern Real-Time Chat Application
 
-A full-stack WhatsApp clone built with Next.js 14, TypeScript, Tailwind CSS, MongoDB, and Socket.io.
+A high-performance, full-stack real-time chat application built with Next.js 14, TypeScript, Tailwind CSS, MongoDB, and Socket.io. Featuring a modern, responsive UI with dark mode support and seamless real-time messaging.
 
-## Tech Stack
+## 🚀 Key Features
 
-- **Framework:** Next.js 14 (App Router)
-- **Language:** TypeScript
-- **Styling:** Tailwind CSS + Shadcn UI
-- **Database:** MongoDB + Mongoose
-- **Authentication:** NextAuth.js (Google + Credentials)
-- **Real-time:** Socket.io (Custom Server)
-- **State Management:** Redux Toolkit + React Query
-- **Validation:** Zod + React Hook Form
-- **Uploads:** Cloudinary
+*   **Real-time Messaging:** Instant message delivery powered by a custom Socket.io server.
+*   **Modern UI/UX:** A professionally designed interface with a polished indigo/slate theme, glassmorphism effects, and smooth animations.
+*   **Authentication:** Secure login via NextAuth.js (Google OAuth + Credentials).
+*   **Group & 1:1 Chats:** Create private conversations or group chats with multiple members.
+*   **Active Status:** Real-time online/offline status indicators for users.
+*   **Read Receipts:** See who has read your messages in real-time.
+*   **Rich Media:** Image sharing support using Cloudinary.
+*   **Responsive Design:** Fully optimized for desktop, tablet, and mobile devices.
+*   **Dark Mode:** Built-in dark mode support for a comfortable viewing experience.
 
-## Features
+## 🛠 Tech Stack
 
-- Real-time Messaging (Socket.io)
-- Authentication (Login/Register/Google)
-- User Search & Profile
-- Group Chats & 1:1 Chats
-- Online/Offline Status
-- Message Read Receipts (Ticks)
-- Infinite Scroll
-- Responsive UI similar to WhatsApp Web
+*   **Framework:** Next.js 14 (App Router)
+*   **Language:** TypeScript
+*   **Styling:** Tailwind CSS + Shadcn UI + Lucide Icons
+*   **Database:** MongoDB + Mongoose
+*   **Authentication:** NextAuth.js
+*   **Real-time:** Socket.io (Custom Server)
+*   **State Management:** Redux Toolkit + React Query
+*   **Validation:** Zod + React Hook Form
 
-## Environment Variables
+## ⚙️ Environment Variables
 
-Create a `.env.local` file in the root directory:
+Create a `.env.local` file in the root directory and add the following:
 
-```bash
-DATABASE_URL="mongodb+srv://..."
-NEXTAUTH_SECRET="your_secret"
+```env
+DATABASE_URL="mongodb+srv://<your-mongodb-connection-string>"
+NEXTAUTH_SECRET="your_nextauth_secret"
 NEXTAUTH_URL="http://localhost:3000"
 
-# Optional for Google Auth
-GOOGLE_CLIENT_ID=""
-GOOGLE_CLIENT_SECRET=""
+# Google Auth (Optional)
+GOOGLE_CLIENT_ID="your_google_client_id"
+GOOGLE_CLIENT_SECRET="your_google_client_secret"
 
-# Optional for Cloudinary
-NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=""
+# Cloudinary (Optional, for image uploads)
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME="your_cloudinary_cloud_name"
 ```
 
-## Getting Started
+## 🚀 Getting Started
 
 ### 1. Install Dependencies
 
@@ -50,53 +50,57 @@ NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=""
 npm install
 ```
 
-### 2. Run Database Seeding
+### 2. Database Seeding (Optional)
 
-To add dummy users:
-
-```bash
-npx ts-node scripts/seed.ts
-```
-
-### 3. Start Development Server
-
-Ideally, run the custom server for Socket.io support.
-
-For local development (Next.js + Socket.io custom server):
+Populate the database with dummy users for testing:
 
 ```bash
-npx ts-node server.ts
+npm run seed
 ```
 
-Visit `http://localhost:3000`
+### 3. Run Development Server
 
-## Project Structure
+The application uses a custom server to handle Socket.io connections. Use the standard dev command, which has been configured to run `server.ts`:
 
-- `app/` - Next.js app directory (routes, layouts)
-- `components/` - Reusable UI components
-  - `chat/` - Chat specific components
-  - `sidebar/` - Sidebar navigation
-  - `ui/` - Shadcn UI components
-- `lib/` - Utility libraries (db, socket, store)
-- `models/` - Mongoose models
-- `hooks/` - Custom React hooks
-- `actions/` - Server actions for data fetching
-- `scripts/` - Utility scripts (seed)
+```bash
+npm run dev
+```
 
-## Deployment
+Visit `http://localhost:3000` to see the application in action.
 
-1. Set environment variables on Vercel.
-2. Deployment to Vercel supports Next.js app features, but specialized WebSocket support requires separate hosting for `server.ts` or using Pusher instead of Socket.io.
-3. For full clonability on Vercel, consider switching real-time provider to Pusher in `app/lib/socket.ts`.
+## 📂 Project Structure
 
-## Future Improvements
+*   `app/` - Next.js App Router directory (pages, layouts, API routes).
+*   `components/` - Reusable UI components.
+    *   `chat/` - Chat-specific components (Header, Body, Input).
+    *   `sidebar/` - Sidebar navigation and user lists.
+    *   `modals/` - Modal components (Group Chat, etc.).
+    *   `ui/` - Shadcn UI components.
+*   `lib/` - core utilities (db connection, auth options, socket client).
+*   `models/` - Mongoose data models (User, Conversation, Message).
+*   `hooks/` - Custom React hooks (useRoutes, useOtherUser, useActiveList).
+*   `actions/` - Server actions for data fetching.
+*   `server.ts` - Custom Node.js server for Socket.io integration.
 
-- Fully implement Group Chat creation modal
-- Add file attachments beyond images
-- Optimize image loading with Next.js Image
-- Add Push Notifications
-- Add End-to-End Tests with Playwright
+## 🔧 Recent Improvements
+
+*   **Fixed Real-Time Connectivity:** Resolved issues where users were not correctly joining socket rooms, ensuring reliable message delivery.
+*   **Enhanced UI:** Upgraded the visual design with a modern color palette, improved typography, and glassmorphism headers.
+*   **Type Safety:** Fixed numerous TypeScript errors to ensure a robust and stable codebase.
+*   **Performance:** Optimized component rendering and state management for a smoother user experience.
+
+## 📦 Deployment
+
+This project uses a custom server (`server.ts`) for WebSockets. When deploying to platforms like Vercel, serverless functions typically do not support long-running WebSocket connections.
+
+**Recommended Deployment:**
+*   **VPS / DigitalOcean / Heroku / Railway:** Deploy as a standard Node.js application (`npm run start`).
+*   **Vercel:** Supports the Next.js app but may require a separate service for the WebSocket server (or refactoring to use a service like Pusher, though Socket.io is currently implemented for better control).
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-Built with ❤️ by Dhivanujan
+Built with ❤️ using Next.js and Socket.io.
