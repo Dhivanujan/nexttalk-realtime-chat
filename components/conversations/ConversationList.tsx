@@ -75,15 +75,15 @@ const ConversationList: React.FC<ConversationListProps> = ({
         });
     });
 
-    sodispatch(setOnlineUsers(userIds));
+    socket.on("online-users", (userIds: string[]) => {
+      dispatch(setOnlineUsers(userIds));
     });
 
     return () => {
         socket.off("new-conversation");
         socket.off("online-users");
     }
-  }, [socket, session?.data?.user, dispatch
-  }, [socket, session?.data?.user]);
+  }, [socket, session?.data?.user, dispatch]);
 
   return (
     <>

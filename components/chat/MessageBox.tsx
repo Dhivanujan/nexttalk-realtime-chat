@@ -22,31 +22,33 @@ const MessageBox: React.FC<MessageBoxProps> = memo(({ data, isLast }) => {
     .map((user) => (user as any).name)
     .join(", ");
 
-  const container = clsx("flex gap-3 p-4", isOwn && "justify-end");
+  const container = clsx("flex gap-3 p-4 hover:bg-black/5 dark:hover:bg-white/5 transition duration-150 ease-in-out group", isOwn && "justify-end");
   const avatar = clsx(isOwn && "order-2");
-  const body = clsx("flex flex-col gap-2", isOwn && "items-end");
+  const body = clsx("flex flex-col gap-2 max-w-[70%]", isOwn && "items-end");
+  
   const message = clsx(
-    "text-sm w-fit overflow-hidden shadow-sm",
-    isOwn ? "bg-gradient-to-br from-primary to-purple-600 text-white dark:text-gray-100" : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 border border-gray-100 dark:border-gray-700",
-    data.image ? "rounded-xl p-0" : "rounded-2xl py-2 px-4 shadow-sm"
+    "text-sm w-fit overflow-hidden shadow-sm transition-all relative",
+    isOwn 
+      ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm" 
+      : "bg-muted text-foreground rounded-2xl rounded-tl-sm",
+    data.image ? "rounded-xl p-0" : "py-2.5 px-4"
   );
 
   return (
     <div className={container}>
       <div className={avatar}>
-        <Avatar>
+        <Avatar className="h-8 w-8 transition-transform group-hover:scale-105">
           <AvatarImage src={(data.senderId as any).image} />
-          <AvatarFallback>{(data.senderId as any).name?.[0]}</AvatarFallback>
+          <AvatarFallback className="text-xs">{(data.senderId as any).name?.[0]}</AvatarFallback>
         </Avatar>
       </div>
       <div className={body}>
-        <div className="flex items-center gap-1">
-          <div className="text-sm text-gray-500">
-            {(data.senderId as any).name}
-          </div>
-          <div className="text-xs text-gray-400">
-            {format(new Date(data.createdAt), "p")}
-          </div>
+        <div className="flex items-center gap-2">
+          {!isOwn && (
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              {(data.senderId as any).name}
+            </div>
+          )}
         </div>
         <div className={message}>
           {data.image ? (
@@ -58,17 +60,21 @@ const MessageBox: React.FC<MessageBoxProps> = memo(({ data, isLast }) => {
               className="
                 object-cover 
                 cursor-pointer 
-                hover:scale-110 
+                hover:scale-105
                 transition 
                 translate
+                rounded-xl
               "
             />
           ) : (
-            <div>{data.body}</div>
+            <div className="leading-relaxed">{data.body}</div>
           )}
         </div>
+        <div className="text-[10px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity px-1">
+            {format(new Date(data.createdAt), "p")}
+        </div>
         {isLast && isOwn && (data.seenIds || []).length > 0 && (
-          <div className="text-xs font-light text-gray-500">
+          <div className="text-xs font-light text-primary/70">
             {`Seen by ${seenList}`}
           </div>
         )}

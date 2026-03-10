@@ -3,10 +3,10 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { ChevronLeft, MoreHorizontal } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { IConversation } from "@/app/models/Conversation";
-import { useOtherUser } from "@/app/hooks/useOtherUser"; // Need this hook
-import { useActiveList } from "@/app/hooks/useActiveList"; // Need this hook
+import { useOtherUser } from "@/app/hooks/useOtherUser";
+import { useActiveList } from "@/app/hooks/useActiveList";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface ChatHeaderProps {
   conversation: IConversation;
@@ -15,20 +15,20 @@ interface ChatHeaderProps {
 const ChatHeader: React.FC<ChatHeaderProps> = ({ conversation }) => {
   const otherUser = useOtherUser(conversation);
   const { members } = useActiveList(); 
-  const isActive = members.indexOf(otherUser?.email!) !== -1;
+  const isActive = members.indexOf((otherUser as any)?.email!) !== -1;
 
   const statusText = useMemo(() => {
     if (conversation.isGroup) {
       return `${conversation.users.length} members`;
     }
-    return isActive ? "Active" : "Offline";
+    return isActive ? "Active now" : "Offline";
   }, [conversation, isActive]);
 
   return (
     <div
       className="
-        bg-background/80 
-        backdrop-blur-md
+        bg-background/95 
+        backdrop-blur supports-[backdrop-filter]:bg-background/60
         w-full 
         flex 
         border-b
@@ -40,9 +40,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ conversation }) => {
         justify-between 
         items-center 
         shadow-sm
-        sticky
-        top-0
-        z-30
+        z-40
       "
     >
       <div className="flex gap-3 items-center">
@@ -59,13 +57,32 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ conversation }) => {
         >
           <ChevronLeft size={32} />
         </Link>
-        <Avatar>
-          <AvatarImage src={otherUser?.image || ""} />
-          <AvatarFallback>{otherUser?.name?.[0]}</AvatarFallback>
-        </Avatar>
+        
+        {conversation.isGroup ? (
+           <Avatar>
+            <AvatarFallback className="bg-primary/10 text-primary">
+              <MoreHorizontal />
+            </AvatarFallback>
+          </Avatar>
+        ) : (
+          <div className="relative">
+            <Avatar>
+              <AvatarImage src={(otherUser as any)?.image || ""} />
+              <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                {(otherUser as any)?.name?.[0]?.toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            {isActive && (
+              <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-background bg-green-500" />
+            )}
+          </div>
+        )}
+        
         <div className="flex flex-col">
-          <div>{conversation.name || otherUser?.name}</div>
-          <div className="text-sm font-light text-neutral-500">
+          <div className="font-semibold text-foreground">
+            {conversation.name || (otherUser as any)?.name}
+          </div>
+          <div className="text-xs font-light text-muted-foreground">
             {statusText}
           </div>
         </div>
@@ -73,9 +90,9 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ conversation }) => {
       <MoreHorizontal
         size={32}
         className="
-          text-sky-500
+          text-primary
           cursor-pointer
-          hover:text-sky-600
+          hover:text-primary/80
           transition
         "
       />

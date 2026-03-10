@@ -38,14 +38,33 @@ const ConversationBox: React.FC<ConversationBoxProps> = memo(({
   }, [data.messagesIds]);
   
   // Actually data.lastMessage is populated in getConversations action
+  const hasSeen = useMemo(() => {
+    if (!lastMessage) {
+      return false;
+    }
+
+    const seenArray = (lastMessage as any).seenIds || [];
+
+    if (!session.data?.user?.email) {
+      return false;
+    }
+
+    // Adjust logic if populated
+    return seenArray.filter((user: any) => user.email === session.data?.user?.email).length !== 0;
+  }, [lastMessage, session.data?.user?.email]);
+
   const lastMessageText = useMemo(() => {
-    const lastMsg = data.lastMessage as unknown as IMessage;
+    // Handling populated or unpopulated lastMessage
+    const lastMsg = data.lastMessage as any;
+    
     if (lastMsg?.image) {
       return "Sent an image";
     }
+    
     if (lastMsg?.body) {
       return lastMsg.body;
     }
+    
     return "Started a conversation";
   }, [data.lastMessage]);
 
@@ -60,33 +79,30 @@ const ConversationBox: React.FC<ConversationBoxProps> = memo(({
         items-center 
         space-x-3 
         p-3 
-        hover:bg-accent/50
-        rounded-xl
+        hover:bg-muted/50
+        rounded-lg
         transition
         cursor-pointer
-        border
         `,
-        selected ? "bg-accent border-primary/20" : "bg-card border-transparent hover:border-border"
+        selected ? "bg-muted" : "bg-card"
       )}
     >
       <div className="relative">
         <Avatar>
-          <AvatarImage
-            src={(otherUser as any)?.image || "/images/placeholder.jpg"}
-          />
-          <AvatarFallback className="bg-primary/10 text-primary">{(otherUser as any)?.name?.[0]}</AvatarFallback>
+          <AvatarImage src={(otherUser as any)?.image} />
+          <AvatarFallback>{(otherUser as any)?.name?.[0]}</AvatarFallback>
         </Avatar>
-        {/* Online status dot can be added here */}
+        {/* Placeholder for active status dot */}
       </div>
       <div className="min-w-0 flex-1">
         <div className="focus:outline-none">
           <div className="flex justify-between items-center mb-1">
-            <p className={clsx("text-md font-medium", selected ? "text-primary" : "text-foreground")}>
-              {(data as any).name || (otherUser as any)?.name}
+            <p className="text-md font-medium text-gray-900 dark:text-gray-100 truncate">
+              {data.name || (otherUser as any)?.name}
             </p>
-            {(data as any).lastMessageAt && (
-              <p className="text-xs text-muted-foreground font-light">
-                {format(new Date((data as any).lastMessageAt), "p")}
+            {data.lastMessageAt && (
+              <p className="text-xs text-gray-400 font-light pl-2 shrink-0">
+                {format(new Date(data.lastMessageAt), "p")}
               </p>
             )}
           </div>
@@ -96,7 +112,7 @@ const ConversationBox: React.FC<ConversationBoxProps> = memo(({
               truncate 
               text-sm
               `,
-              selected ? "text-primary/80" : "text-muted-foreground"
+              hasSeen ? "text-gray-500" : "text-black font-medium dark:text-white"
             )}
           >
             {lastMessageText}
