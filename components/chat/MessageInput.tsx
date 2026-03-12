@@ -46,21 +46,5 @@ const MessageInput: React.FC<MessageInputProps> = ({
     </div>
   );
 };
-          text-foreground
-          font-light
-          py-2
-          px-4
-          bg-secondary/50 
-          w-full 
-          rounded-full
-          focus:outline-none
-          focus:ring-2 
-          focus:ring-primary 
-          focus:border-transparent
-          transition
-        "
-      />
-    </div>
-  );
-};
+
 export default MessageInput;

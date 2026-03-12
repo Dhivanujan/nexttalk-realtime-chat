@@ -1,0 +1,8 @@
+
+> next-talk@0.1.0 lint
+> next lint
+
+? How would you like to configure ESLint? https://nextjs.org/docs/basic-features/eslint
+[?25l❯  Strict (recommended)
+   Base
+   Cancel^C
