@@ -1,4 +1,5 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "path";
 import { createServer } from "http";
 import cors from "cors";
 import express from "express";
@@ -9,6 +10,16 @@ import conversationRouter from "./routes/conversation.routes";
 import messageRouter from "./routes/message.routes";
 import userRouter from "./routes/user.routes";
 import { User } from "./models/User";
+
+const cwd = process.cwd();
+const repoRoot = path.resolve(cwd, "..");
+
+dotenv.config({ path: path.resolve(cwd, ".env") });
+dotenv.config({ path: path.resolve(cwd, ".env.local") });
+dotenv.config({ path: path.resolve(cwd, "server/.env") });
+dotenv.config({ path: path.resolve(repoRoot, ".env") });
+dotenv.config({ path: path.resolve(repoRoot, ".env.local") });
+dotenv.config({ path: path.resolve(repoRoot, "server/.env") });
 
 const app = express();
 const httpServer = createServer(app);
@@ -100,15 +111,19 @@ io.on("connection", (socket) => {
 });
 
 async function bootstrap(): Promise<void> {
-  const mongoUri = process.env.MONGODB_URI;
+  const mongoUri = process.env.MONGODB_URI || process.env.DATABASE_URL;
   const port = Number(process.env.PORT || 5000);
 
   if (!mongoUri) {
-    throw new Error("MONGODB_URI is required");
+    throw new Error("MONGODB_URI or DATABASE_URL is required");
+  }
+
+  if (!process.env.JWT_SECRET && process.env.NEXTAUTH_SECRET) {
+    process.env.JWT_SECRET = process.env.NEXTAUTH_SECRET;
   }
 
   if (!process.env.JWT_SECRET) {
-    throw new Error("JWT_SECRET is required");
+    throw new Error("JWT_SECRET is required (or provide NEXTAUTH_SECRET)");
   }
 
   await connectDatabase(mongoUri);

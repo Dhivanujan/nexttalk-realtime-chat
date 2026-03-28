@@ -1,4 +1,4 @@
-import { Document, Model, Schema, Types, model } from "mongoose";
+import mongoose, { Document, Model, Schema, Types, model } from "mongoose";
 
 export interface IConversation extends Document {
   name?: string;
@@ -23,4 +23,5 @@ const ConversationSchema = new Schema<IConversation>(
 
 ConversationSchema.index({ users: 1, updatedAt: -1 });
 
-export const Conversation: Model<IConversation> = model<IConversation>("Conversation", ConversationSchema);
+export const Conversation: Model<IConversation> =
+  mongoose.models.Conversation || model<IConversation>("Conversation", ConversationSchema);

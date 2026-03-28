@@ -1,4 +1,4 @@
-import { Document, Model, Schema, Types, model } from "mongoose";
+import mongoose, { Document, Model, Schema, Types, model } from "mongoose";
 
 export interface IMessage extends Document {
   body?: string;
@@ -23,4 +23,5 @@ const MessageSchema = new Schema<IMessage>(
 
 MessageSchema.index({ conversationId: 1, createdAt: 1 });
 
-export const Message: Model<IMessage> = model<IMessage>("Message", MessageSchema);
+export const Message: Model<IMessage> =
+  mongoose.models.Message || model<IMessage>("Message", MessageSchema);
