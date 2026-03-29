@@ -9,6 +9,7 @@ import authRouter from "./routes/auth.routes";
 import conversationRouter from "./routes/conversation.routes";
 import messageRouter from "./routes/message.routes";
 import userRouter from "./routes/user.routes";
+import uploadRouter from "./routes/upload.routes";
 import { User } from "./models/User";
 
 const cwd = process.cwd();
@@ -49,6 +50,10 @@ app.use("/api/auth", authRouter);
 app.use("/api/users", userRouter);
 app.use("/api/conversations", conversationRouter);
 app.use("/api/messages", messageRouter);
+app.use("/api/upload", uploadRouter);
+
+// Serve uploaded files statically
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 const onlineUsers = new Map<string, string>();
 

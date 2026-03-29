@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { api } from "../lib/api";
+import { api, uploadImage } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { AppUser, Conversation, Message } from "../types";
 
@@ -20,6 +20,7 @@ export default function ChatPage() {
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -109,19 +110,29 @@ export default function ChatPage() {
 
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
-    if (!draft.trim() || !activeConversation) {
+    if ((!draft.trim() && !imageFile) || !activeConversation) {
       return;
     }
 
     setSending(true);
     const text = draft;
+    const file = imageFile;
     setDraft("");
+    setImageFile(null);
 
     try {
+      let imageUrl = undefined;
+      if (file) {
+        imageUrl = await uploadImage(file);
+      }
+
       await api.post("/messages", {
-        message: text,
+        message: text.trim() ? text : undefined,
+        image: imageUrl,
         conversationId: activeConversation._id,
       });
+    } catch (err) {
+      console.error("Failed to send message", err);
     } finally {
       setSending(false);
     }
@@ -219,21 +230,59 @@ export default function ChatPage() {
               }
             >
               <div className="message-meta">{message.senderId.name}</div>
-              <div>{message.body}</div>
+              {message.image && (
+                <div style={{ marginBottom: "5px" }}>
+                  <img
+                    src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`}
+                    alt="attachment"
+                    style={{ maxWidth: "250px", borderRadius: "8px", display: "block" }}
+                  />
+                </div>
+              )}
+              {message.body && <div>{message.body}</div>}
             </div>
           ))}
         </div>
 
-        <form className="composer" onSubmit={sendMessage}>
-          <input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="Write a message"
-            disabled={!activeConversation || sending}
-          />
-          <button type="submit" disabled={!activeConversation || sending}>
-            Send
-          </button>
+        <form className="composer" onSubmit={sendMessage} style={{ flexDirection: "column", gap: "10px" }}>
+          {imageFile && (
+            <div className="image-preview" style={{ padding: "8px", background: "#f0f0f0", borderRadius: "4px", alignSelf: "flex-start", display: "flex", gap: "10px", alignItems: "center" }}>
+              <span style={{ fontSize: "14px", color: "#333" }}>{imageFile.name}</span>
+              <button 
+                type="button" 
+                onClick={() => setImageFile(null)}
+                style={{ padding: "2px 6px", background: "#ff4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
+              >
+                X
+              </button>
+            </div>
+          )}
+          <div style={{ display: "flex", width: "100%", gap: "10px", alignItems: "center" }}>
+            <input
+              type="file"
+              accept="image/*"
+              id="file-upload"
+              style={{ display: "none" }}
+              onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+            />
+            <label 
+              htmlFor="file-upload" 
+              style={{ cursor: "pointer", fontSize: "24px", opacity: (!activeConversation || sending) ? 0.5 : 1, pointerEvents: (!activeConversation || sending) ? "none" : "auto" }}
+              title="Attach image"
+            >
+              📷
+            </label>
+            <input
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="Write a message"
+              disabled={!activeConversation || sending}
+              style={{ flex: 1 }}
+            />
+            <button type="submit" disabled={!activeConversation || sending}>
+              Send
+            </button>
+          </div>
         </form>
       </main>
     </div>
