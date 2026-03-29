@@ -1,74 +1,74 @@
-# NextTalk MERN
+# React + Express Chat Application
 
-This repository has been migrated to a MERN architecture:
+A full-stack, real-time chat application built with React, Node.js, Express, Socket.IO, and MongoDB.
 
-- MongoDB + Mongoose
-- Express.js API
-- React (Vite + TypeScript) frontend
-- Node.js + Socket.IO real-time server
+## Project Structure
 
-## Project Layout
-
-- `server/` Express + Socket.IO + Mongoose backend
-- `client/` React frontend
-- `package.json` root scripts to run both apps together
+This project follows a clean separated architecture:
+- `client/`: React (Vite + TypeScript) frontend application
+- `server/`: Node.js + Express backend API with Socket.IO for real-time messaging
 
 ## Environment Setup
 
-Create `server/.env` from `server/.env.example`:
+### Server
+Create `server/.env` matching your environment:
 
 ```env
 PORT=5000
-MONGODB_URI=mongodb://127.0.0.1:27017/next-talk-mern
-JWT_SECRET=change-this-secret
+MONGODB_URI=mongodb://127.0.0.1:27017/chat-app
+JWT_SECRET=your-jwt-secret-here
 CLIENT_URL=http://localhost:5173
 ```
 
-Create `client/.env` (optional if using defaults):
+### Client (Frontend)
+Create `client/.env.local` to define your backend API mapping:
 
 ```env
 VITE_API_URL=http://localhost:5000/api
 VITE_SOCKET_URL=http://localhost:5000
 ```
 
-## Install
+## Installation
+
+Install dependencies for the root, frontend, and backend:
 
 ```bash
 npm install
 npm run install:all
 ```
 
-## Run Development
+## Running the Application
+
+To run both the server and the client concurrently in development mode:
 
 ```bash
 npm run dev
 ```
 
-- API server: `http://localhost:5000`
-- Client app: `http://localhost:5173`
+- **Frontend Client:** `http://localhost:5173`
+- **Backend API:** `http://localhost:5000`
 
-## Build
+## Build for Production
 
 ```bash
 npm run build
 ```
 
-## Main API Endpoints
+## Features & Endpoints
 
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `GET /api/users`
-- `GET /api/conversations`
-- `POST /api/conversations`
-- `POST /api/conversations/:conversationId/seen`
-- `GET /api/messages/:conversationId`
-- `POST /api/messages`
+**Main API Endpoints:**
+- `POST /api/auth/register` - Create a new user
+- `POST /api/auth/login` - Authenticate a user
+- `GET /api/users` - Fetch users to chat with
+- `GET /api/conversations` - Get a user's active conversations
+- `POST /api/conversations` - Start a new conversation
+- `POST /api/conversations/:conversationId/seen` - Mark messages as read
+- `GET /api/messages/:conversationId` - Retrieve chat history
+- `POST /api/messages` - Send a message
 
-## Socket Events
-
-- `register-user`
+**Real-time Socket.IO Events:**
+- `register-user` / `disconnect`
 - `join-room`
-- `typing`
-- `stop-typing`
+- `typing` / `stop-typing`
 - `receive-message`
 - `new-conversation`
