@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api, uploadImage } from "../lib/api";
 import { getSocket } from "../lib/socket";
@@ -19,9 +19,13 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [onlineUserIds, setOnlineUserIds] = useState(new Set());
   const [draft, setDraft] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [sending, setSending] = useState(false);
+  const [typingUsers, setTypingUsers] = useState(new Set());
+  const [isTyping, setIsTyping] = useState(false);
+  const typingTimeoutRef = useRef(null);
   
   // Search state
   const [contactSearch, setContactSearch] = useState("");
@@ -91,9 +95,32 @@ export default function ChatPage() {
       });
     });
 
+    socket.on("user-typing", ({ userId }) => {
+      setTypingUsers((prev) => {
+        const next = new Set(prev);
+        next.add(userId);
+        return next;
+      });
+    });
+
+    socket.on("user-stop-typing", ({ userId }) => {
+      setTypingUsers((prev) => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
+    });
+
+    socket.on("online-users", (userIds) => {
+      setOnlineUserIds(new Set(userIds));
+    });
+
     return () => {
       socket.off("receive-message");
       socket.off("new-conversation");
+      socket.off("user-typing");
+      socket.off("user-stop-typing");
+      socket.off("online-users");
     };
   }, [socket, user, activeConversation?._id]);
 
@@ -114,6 +141,26 @@ export default function ChatPage() {
     });
   }, [activeConversation, socket]);
 
+  const handleTyping = (event) => {
+    setDraft(event.target.value);
+    
+    if (!socket.connected || !activeConversation) return;
+
+    if (!isTyping) {
+      setIsTyping(true);
+      socket.emit("typing", { roomId: activeConversation._id, userId: user.id });
+    }
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit("stop-typing", { roomId: activeConversation._id, userId: user.id });
+      setIsTyping(false);
+    }, 2000);
+  };
+
   async function sendMessage(event) {
     event.preventDefault();
     if ((!draft.trim() && !imageFile) || !activeConversation) {
@@ -121,6 +168,9 @@ export default function ChatPage() {
     }
 
     setSending(true);
+    socket.emit("stop-typing", { roomId: activeConversation._id, userId: user.id });
+    setIsTyping(false);
+    
     const text = draft;
     const file = imageFile;
     setDraft("");
@@ -207,17 +257,22 @@ export default function ChatPage() {
         <section>
           <h3>Conversations</h3>
           <div className="list">
-            {conversations.map((conversation) => (
+            {conversations.map((conversation) => {
+              const isOtherUserOnline = conversation.isGroup ? false : conversation.users.some(u => (u._id !== user.id && u.id !== user.id) && onlineUserIds.has(u._id || u.id));
+              return (
               <button
                 key={conversation._id}
                 className={conversation._id === activeConversation?._id ? "list-item active" : "list-item"}
                 type="button"
                 onClick={() => setActiveConversation(conversation)}
               >
-                <strong>{getConversationTitle(conversation, user.id)}</strong>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <strong>{getConversationTitle(conversation, user.id)}</strong>
+                  {isOtherUserOnline && <div style={{width: 8, height: 8, borderRadius: '50%', background: '#4ade80'}} title="Online" />}
+                </div>
                 <span>{conversation.lastMessage?.body || "No messages yet"}</span>
               </button>
-            ))}
+            )})}
           </div>
         </section>
 
@@ -292,6 +347,11 @@ export default function ChatPage() {
               {message.body && <div>{message.body}</div>}
             </div>
           ))}
+          {activeConversation && Array.from(typingUsers).filter(id => activeConversation.users.some(u => (u._id || u.id) === id)).length > 0 && (
+            <div className="message" style={{ background: "transparent", fontStyle: "italic", color: "#888" }}>
+              Someone is typing...
+            </div>
+          )}
         </div>
 
         <form className="composer" onSubmit={sendMessage} style={{ flexDirection: "column", gap: "10px" }}>
@@ -324,7 +384,7 @@ export default function ChatPage() {
             </label>
             <input
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={handleTyping}
               placeholder="Write a message"
               disabled={!activeConversation || sending}
               style={{ flex: 1 }}
