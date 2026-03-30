@@ -25,9 +25,10 @@ export default function ChatPage() {
   
   // Search state
   const [contactSearch, setContactSearch] = useState("");
-  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
-  const [globalSearchResults, setGlobalSearchResults] = useState([]);
-  const [searchingGlobal, setSearchingGlobal] = useState(false);
+  const [newContactEmail, setNewContactEmail] = useState("");
+  const [addingContact, setAddingContact] = useState(false);
+  const [addContactError, setAddContactError] = useState("");
+  const [addContactSuccess, setAddContactSuccess] = useState("");
 
   const socket = useMemo(() => getSocket(), []);
 
@@ -157,30 +158,28 @@ export default function ChatPage() {
     setActiveConversation(response.data);
   }
 
-  async function searchGlobalUsers(e) {
+  async function handleAddContactByEmail(e) {
     e.preventDefault();
-    if (!globalSearchQuery.trim()) return;
-    setSearchingGlobal(true);
+    if (!newContactEmail.trim()) return;
+    
+    setAddingContact(true);
+    setAddContactError("");
+    setAddContactSuccess("");
+    
     try {
-      const res = await api.get(`/users/search?query=${encodeURIComponent(globalSearchQuery)}`);
-      setGlobalSearchResults(res.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSearchingGlobal(false);
-    }
-  }
-
-  async function addToContacts(targetUser) {
-    try {
-      await api.post("/users/contacts", { contactId: targetUser._id || targetUser.id });
+      await api.post("/users/contacts", { email: newContactEmail.trim() });
+      setAddContactSuccess("Contact added!");
+      setNewContactEmail("");
+      
       // Refresh contacts
       const res = await api.get("/users/contacts");
       setContacts(res.data);
-      // Remove from search results just to clean up UI (optional)
-      setGlobalSearchResults(prev => prev.filter(u => u._id !== targetUser._id && u.id !== targetUser.id));
+      
+      setTimeout(() => setAddContactSuccess(""), 3000);
     } catch (err) {
-      console.error(err);
+      setAddContactError(err.response?.data?.message || "Failed to add contact");
+    } finally {
+      setAddingContact(false);
     }
   }
 
@@ -246,32 +245,22 @@ export default function ChatPage() {
         </section>
 
         <section>
-          <h3>Find New Users</h3>
-          <form style={{ display: 'flex', gap: '5px', marginBottom: '10px' }} onSubmit={searchGlobalUsers}>
-            <input
-              className="search-input"
-              style={{ margin: 0, flex: 1 }}
-              placeholder="Search name/email"
-              value={globalSearchQuery}
-              onChange={(e) => setGlobalSearchQuery(e.target.value)}
-            />
-            <button type="submit" disabled={searchingGlobal}>Search</button>
+          <h3>Add New Contact</h3>
+          <form style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '10px' }} onSubmit={handleAddContactByEmail}>
+            <div style={{ display: 'flex', gap: '5px' }}>
+              <input
+                className="search-input"
+                style={{ margin: 0, flex: 1 }}
+                type="email"
+                placeholder="Enter user email"
+                value={newContactEmail}
+                onChange={(e) => setNewContactEmail(e.target.value)}
+              />
+              <button type="submit" disabled={addingContact}>Add</button>
+            </div>
+            {addContactError && <span style={{ color: 'red', fontSize: '12px' }}>{addContactError}</span>}
+            {addContactSuccess && <span style={{ color: 'green', fontSize: '12px' }}>{addContactSuccess}</span>}
           </form>
-          <div className="list compact" style={{ maxHeight: "150px", overflowY: "auto" }}>
-            {globalSearchResults.map((u) => (
-               <div key={u._id || u.id} className="list-item" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                 <div style={{textAlign: 'left'}}>
-                   <strong>{u.name}</strong><br/>
-                   <span style={{fontSize: '12px'}}>{u.email}</span>
-                 </div>
-                 {contacts.some(c => (c._id || c.id) === (u._id || u.id)) ? (
-                   <span style={{ fontSize: '12px', color: 'green' }}>Added</span>
-                 ) : (
-                   <button onClick={() => addToContacts(u)} style={{padding: '4px 8px'}}>+</button>
-                 )}
-               </div>
-            ))}
-          </div>
         </section>
       </aside>
 

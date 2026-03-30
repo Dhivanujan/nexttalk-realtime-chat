@@ -26,16 +26,29 @@ userRouter.get("/search", requireAuth, async (req, res) => {
 
 userRouter.post("/contacts", requireAuth, async (req, res) => {
   try {
-    const { contactId } = req.body;
-    if (!contactId) return res.status(400).json({ message: "Contact ID required" });
+    const { contactId, email } = req.body;
+    
+    let targetUserId = contactId;
+
+    if (email) {
+      const targetUser = await User.findOne({ email: email.toLowerCase() });
+      if (!targetUser) {
+        return res.status(404).json({ message: "User with this email not found" });
+      }
+      if (targetUser._id.toString() === req.userId) {
+        return res.status(400).json({ message: "You cannot add yourself" });
+      }
+      targetUserId = targetUser._id;
+    }
+
+    if (!targetUserId) return res.status(400).json({ message: "Contact ID or email required" });
     
     const user = await User.findById(req.userId);
-    if (!user.contacts.includes(contactId)) {
-      user.contacts.push(contactId);
+    if (!user.contacts.includes(targetUserId)) {
+      user.contacts.push(targetUserId);
       await user.save();
     }
     
-    // Also optionally, could we make it mutual like whatsapp? Let's just do one-way for now as per simple saving feature
     res.status(200).json({ message: "Contact added successfully" });
   } catch (error) {
     res.status(500).json({ message: "Failed to add contact" });
