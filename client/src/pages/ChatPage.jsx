@@ -27,6 +27,13 @@ export default function ChatPage() {
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef(null);
   
+  // Pagination & Load More State
+  const [cursor, setCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const messageStreamRef = useRef(null);
+  const observerTarget = useRef(null);
+
   // Search state
   const [contactSearch, setContactSearch] = useState("");
   const [newContactEmail, setNewContactEmail] = useState("");
@@ -74,6 +81,13 @@ export default function ChatPage() {
         setMessages((current) => {
           // Prevent duplicates if already there
           if (current.some(m => m._id === message._id)) return current;
+          
+          setTimeout(() => {
+            if (messageStreamRef.current) {
+              messageStreamRef.current.scrollTop = messageStreamRef.current.scrollHeight;
+            }
+          }, 50);
+
           return [...current, message];
         });
         
@@ -148,19 +162,73 @@ export default function ChatPage() {
   useEffect(() => {
     if (!activeConversation) {
       setMessages([]);
+      setCursor(null);
+      setHasMore(false);
       return;
     }
 
+    setCursor(null);
+    setHasMore(false);
+
     socket.emit("join-room", activeConversation._id);
 
-    api.get(`/messages/${activeConversation._id}`).then((response) => {
-      setMessages(response.data);
+    api.get(`/messages/${activeConversation._id}?limit=20`).then((response) => {
+      setMessages(response.data.messages);
+      setCursor(response.data.nextCursor);
+      setHasMore(response.data.hasMore);
+      
+      // Scroll bottom initially
+      setTimeout(() => {
+         if (messageStreamRef.current) {
+           messageStreamRef.current.scrollTop = messageStreamRef.current.scrollHeight;
+         }
+      }, 50);
     });
 
     api.post(`/conversations/${activeConversation._id}/seen`).catch(() => {
       // Non-critical for primary chat experience.
     });
   }, [activeConversation, socket]);
+
+  const loadMoreMessages = async () => {
+    if (!cursor || !activeConversation || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const prevHeight = messageStreamRef.current?.scrollHeight;
+      const res = await api.get(`/messages/${activeConversation._id}?cursor=${cursor}&limit=20`);
+      
+      setMessages(prev => [...res.data.messages, ...prev]);
+      setCursor(res.data.nextCursor);
+      setHasMore(res.data.hasMore);
+
+      // Restore scroll position so user isn't snapped to the top
+      setTimeout(() => {
+        if (messageStreamRef.current) {
+           const newHeight = messageStreamRef.current.scrollHeight;
+           messageStreamRef.current.scrollTop = newHeight - prevHeight;
+        }
+      }, 0);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          loadMoreMessages();
+        }
+      },
+      { threshold: 1.0 }
+    );
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, cursor, activeConversation]);
 
   const handleTyping = (event) => {
     setDraft(event.target.value);
@@ -363,7 +431,10 @@ export default function ChatPage() {
           </h3>
         </header>
 
-        <div className="message-stream">
+        <div className="message-stream" ref={messageStreamRef}>
+          <div ref={observerTarget} style={{ height: "1px", visibility: "hidden" }} />
+          {loadingMore && <div style={{ textAlign: "center", padding: "10px", fontSize: "12px", color: "#888" }}>Loading older messages...</div>}
+          
           {messages.map((message) => (
             <div
               key={message._id}

@@ -10,12 +10,32 @@ const messageRouter = Router();
 messageRouter.get("/:conversationId", requireAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
+    const limit = parseInt(req.query.limit) || 20;
+    const cursor = req.query.cursor;
 
-    const messages = await Message.find({ conversationId })
+    const query = { conversationId };
+
+    if (cursor) {
+      query._id = { $lt: cursor };
+    }
+
+    // Sort descending (_id: -1) to get the most recent messages first, then slice by limit
+    const messages = await Message.find(query)
       .populate("senderId", "name email image")
-      .sort({ createdAt: 1 });
+      .sort({ _id: -1 })
+      .limit(limit);
 
-    res.json(messages);
+    // Reverse them so the frontend receives them in chronological order
+    messages.reverse();
+
+    const hasMore = messages.length === limit;
+    const nextCursor = messages.length > 0 ? messages[0]._id : null;
+
+    res.json({
+      messages,
+      nextCursor,
+      hasMore,
+    });
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch messages" });
   }
