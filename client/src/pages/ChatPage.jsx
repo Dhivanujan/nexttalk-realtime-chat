@@ -15,14 +15,19 @@ function getConversationTitle(conversation, currentUserId) {
 
 export default function ChatPage() {
   const { user, logout } = useAuth();
-  const [users, setUsers] = useState([]);
+  const [contacts, setContacts] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [sending, setSending] = useState(false);
-  const [search, setSearch] = useState("");
+  
+  // Search state
+  const [contactSearch, setContactSearch] = useState("");
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const [globalSearchResults, setGlobalSearchResults] = useState([]);
+  const [searchingGlobal, setSearchingGlobal] = useState(false);
 
   const socket = useMemo(() => getSocket(), []);
 
@@ -32,12 +37,12 @@ export default function ChatPage() {
     }
 
     (async () => {
-      const [userResponse, conversationResponse] = await Promise.all([
-        api.get("/users"),
+      const [contactsResponse, conversationResponse] = await Promise.all([
+        api.get("/users/contacts"),
         api.get("/conversations"),
       ]);
 
-      setUsers(userResponse.data);
+      setContacts(contactsResponse.data);
       setConversations(conversationResponse.data);
 
       if (conversationResponse.data.length > 0) {
@@ -152,8 +157,35 @@ export default function ChatPage() {
     setActiveConversation(response.data);
   }
 
-  const filteredUsers = users.filter((entry) =>
-    entry.name.toLowerCase().includes(search.toLowerCase()) || entry.email.toLowerCase().includes(search.toLowerCase()),
+  async function searchGlobalUsers(e) {
+    e.preventDefault();
+    if (!globalSearchQuery.trim()) return;
+    setSearchingGlobal(true);
+    try {
+      const res = await api.get(`/users/search?query=${encodeURIComponent(globalSearchQuery)}`);
+      setGlobalSearchResults(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSearchingGlobal(false);
+    }
+  }
+
+  async function addToContacts(targetUser) {
+    try {
+      await api.post("/users/contacts", { contactId: targetUser._id || targetUser.id });
+      // Refresh contacts
+      const res = await api.get("/users/contacts");
+      setContacts(res.data);
+      // Remove from search results just to clean up UI (optional)
+      setGlobalSearchResults(prev => prev.filter(u => u._id !== targetUser._id && u.id !== targetUser.id));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  const filteredContacts = contacts.filter((entry) =>
+    entry.name.toLowerCase().includes(contactSearch.toLowerCase()) || entry.email.toLowerCase().includes(contactSearch.toLowerCase()),
   );
 
   if (!user) {
@@ -191,15 +223,15 @@ export default function ChatPage() {
         </section>
 
         <section>
-          <h3>Start Chat</h3>
+          <h3>Contacts</h3>
           <input
             className="search-input"
-            placeholder="Search users"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search contacts"
+            value={contactSearch}
+            onChange={(event) => setContactSearch(event.target.value)}
           />
-          <div className="list compact">
-            {filteredUsers.map((targetUser) => (
+          <div className="list compact" style={{ maxHeight: "200px", overflowY: "auto" }}>
+            {filteredContacts.map((targetUser) => (
               <button
                 className="list-item"
                 key={targetUser.id || targetUser._id}
@@ -209,6 +241,35 @@ export default function ChatPage() {
                 <strong>{targetUser.name}</strong>
                 <span>{targetUser.email}</span>
               </button>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h3>Find New Users</h3>
+          <form style={{ display: 'flex', gap: '5px', marginBottom: '10px' }} onSubmit={searchGlobalUsers}>
+            <input
+              className="search-input"
+              style={{ margin: 0, flex: 1 }}
+              placeholder="Search name/email"
+              value={globalSearchQuery}
+              onChange={(e) => setGlobalSearchQuery(e.target.value)}
+            />
+            <button type="submit" disabled={searchingGlobal}>Search</button>
+          </form>
+          <div className="list compact" style={{ maxHeight: "150px", overflowY: "auto" }}>
+            {globalSearchResults.map((u) => (
+               <div key={u._id || u.id} className="list-item" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                 <div style={{textAlign: 'left'}}>
+                   <strong>{u.name}</strong><br/>
+                   <span style={{fontSize: '12px'}}>{u.email}</span>
+                 </div>
+                 {contacts.some(c => (c._id || c.id) === (u._id || u.id)) ? (
+                   <span style={{ fontSize: '12px', color: 'green' }}>Added</span>
+                 ) : (
+                   <button onClick={() => addToContacts(u)} style={{padding: '4px 8px'}}>+</button>
+                 )}
+               </div>
             ))}
           </div>
         </section>

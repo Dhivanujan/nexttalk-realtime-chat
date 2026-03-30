@@ -10,6 +10,7 @@ const UserSchema = new Schema(
     bio: { type: String, default: "Hey there! I am using NextTalk." },
     isOnline: { type: Boolean, default: false },
     lastSeen: { type: Date, default: Date.now },
+    contacts: [{ type: Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true },
 );
