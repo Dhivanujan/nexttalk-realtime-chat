@@ -5,7 +5,7 @@ A full-stack, real-time chat application built with React, Node.js, Express, Soc
 ## Project Structure
 
 This project follows a clean separated architecture:
-- `client/`: React (Vite + TypeScript) frontend application
+- `client/`: React (Vite) frontend application built with JavaScript
 - `server/`: Node.js + Express backend API with Socket.IO for real-time messaging
 
 ## Environment Setup
