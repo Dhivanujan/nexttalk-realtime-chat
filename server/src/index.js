@@ -1,16 +1,16 @@
-import dotenv from "dotenv";
+﻿import dotenv from "dotenv";
 import path from "path";
 import { createServer } from "http";
 import cors from "cors";
 import express from "express";
 import { Server } from "socket.io";
-import { connectDatabase } from "./config/db";
-import authRouter from "./routes/auth.routes";
-import conversationRouter from "./routes/conversation.routes";
-import messageRouter from "./routes/message.routes";
-import userRouter from "./routes/user.routes";
-import uploadRouter from "./routes/upload.routes";
-import { User } from "./models/User";
+import { connectDatabase } from "./config/db.js";
+import authRouter from "./routes/auth.routes.js";
+import conversationRouter from "./routes/conversation.routes.js";
+import messageRouter from "./routes/message.routes.js";
+import userRouter from "./routes/user.routes.js";
+import uploadRouter from "./routes/upload.routes.js";
+import { User } from "./models/User.js";
 
 const cwd = process.cwd();
 const repoRoot = path.resolve(cwd, "..");
@@ -55,12 +55,12 @@ app.use("/api/upload", uploadRouter);
 // Serve uploaded files statically
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-const onlineUsers = new Map<string, string>();
+const onlineUsers = new Map();
 
 io.on("connection", (socket) => {
   socket.emit("online-users", Array.from(onlineUsers.keys()));
 
-  socket.on("register-user", async (userId: string) => {
+  socket.on("register-user", async (userId) => {
     onlineUsers.set(userId, socket.id);
     socket.join(userId);
 
@@ -75,20 +75,20 @@ io.on("connection", (socket) => {
     io.emit("online-users", Array.from(onlineUsers.keys()));
   });
 
-  socket.on("join-room", (roomId: string) => {
+  socket.on("join-room", (roomId) => {
     socket.join(roomId);
   });
 
-  socket.on("typing", ({ roomId, userId }: { roomId: string; userId: string }) => {
+  socket.on("typing", ({ roomId, userId }) => {
     socket.to(roomId).emit("user-typing", { userId });
   });
 
-  socket.on("stop-typing", ({ roomId, userId }: { roomId: string; userId: string }) => {
+  socket.on("stop-typing", ({ roomId, userId }) => {
     socket.to(roomId).emit("user-stop-typing", { userId });
   });
 
   socket.on("disconnect", async () => {
-    let disconnectedUserId: string | null = null;
+    let disconnectedUserId = null;
 
     for (const [userId, socketId] of onlineUsers.entries()) {
       if (socketId === socket.id) {
@@ -115,7 +115,7 @@ io.on("connection", (socket) => {
   });
 });
 
-async function bootstrap(): Promise<void> {
+async function bootstrap() {
   const mongoUri = process.env.MONGODB_URI || process.env.DATABASE_URL;
   const port = Number(process.env.PORT || 5000);
 
@@ -142,3 +142,5 @@ bootstrap().catch((error) => {
   console.error("Failed to start server", error);
   process.exit(1);
 });
+
+

@@ -1,8 +1,8 @@
-import { NextFunction, Response } from "express";
+﻿
 import jwt from "jsonwebtoken";
-import { AuthenticatedRequest } from "../types/express";
 
-export function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+
+export function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
@@ -12,10 +12,13 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
   }
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET || "") as { userId: string };
+    const payload = jwt.verify(token, process.env.JWT_SECRET || "");
     req.userId = payload.userId;
     next();
   } catch (error) {
     res.status(401).json({ message: "Invalid token" });
   }
 }
+
+
+

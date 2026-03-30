@@ -1,26 +1,26 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api, uploadImage } from "../lib/api";
 import { getSocket } from "../lib/socket";
-import { AppUser, Conversation, Message } from "../types";
 
-function getConversationTitle(conversation: Conversation, currentUserId: string): string {
+
+function getConversationTitle(conversation, currentUserId) {
   if (conversation.isGroup) {
     return conversation.name || "Group";
   }
 
-  const otherUser = conversation.users.find((user) => user.id !== currentUserId && (user as any)._id !== currentUserId);
+  const otherUser = conversation.users.find((user) => user.id !== currentUserId && user._id !== currentUserId);
   return otherUser?.name || "Direct Chat";
 }
 
 export default function ChatPage() {
   const { user, logout } = useAuth();
-  const [users, setUsers] = useState<AppUser[]>([]);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [users, setUsers] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [activeConversation, setActiveConversation] = useState(null);
+  const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageFile, setImageFile] = useState(null);
   const [sending, setSending] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -33,8 +33,8 @@ export default function ChatPage() {
 
     (async () => {
       const [userResponse, conversationResponse] = await Promise.all([
-        api.get<AppUser[]>("/users"),
-        api.get<Conversation[]>("/conversations"),
+        api.get("/users"),
+        api.get("/conversations"),
       ]);
 
       setUsers(userResponse.data);
@@ -59,7 +59,7 @@ export default function ChatPage() {
 
     socket.emit("register-user", user.id);
 
-    socket.on("receive-message", (message: Message) => {
+    socket.on("receive-message", (message) => {
       if (message.conversationId === activeConversation?._id) {
         setMessages((current) => [...current, message]);
       }
@@ -78,7 +78,7 @@ export default function ChatPage() {
       });
     });
 
-    socket.on("new-conversation", (conversation: Conversation) => {
+    socket.on("new-conversation", (conversation) => {
       setConversations((current) => {
         const existing = current.filter((item) => item._id !== conversation._id);
         return [conversation, ...existing];
@@ -99,7 +99,7 @@ export default function ChatPage() {
 
     socket.emit("join-room", activeConversation._id);
 
-    api.get<Message[]>(`/messages/${activeConversation._id}`).then((response) => {
+    api.get(`/messages/${activeConversation._id}`).then((response) => {
       setMessages(response.data);
     });
 
@@ -108,7 +108,7 @@ export default function ChatPage() {
     });
   }, [activeConversation, socket]);
 
-  async function sendMessage(event: FormEvent) {
+  async function sendMessage(event) {
     event.preventDefault();
     if ((!draft.trim() && !imageFile) || !activeConversation) {
       return;
@@ -138,9 +138,9 @@ export default function ChatPage() {
     }
   }
 
-  async function startConversation(targetUser: AppUser) {
-    const response = await api.post<Conversation>("/conversations", {
-      userId: targetUser.id || (targetUser as any)._id,
+  async function startConversation(targetUser) {
+    const response = await api.post("/conversations", {
+      userId: targetUser.id || targetUser._id,
       isGroup: false,
     });
 
@@ -202,7 +202,7 @@ export default function ChatPage() {
             {filteredUsers.map((targetUser) => (
               <button
                 className="list-item"
-                key={targetUser.id || (targetUser as any)._id}
+                key={targetUser.id || targetUser._id}
                 type="button"
                 onClick={() => startConversation(targetUser)}
               >
@@ -226,7 +226,7 @@ export default function ChatPage() {
             <div
               key={message._id}
               className={
-                (message.senderId.id || (message.senderId as any)._id) === user.id ? "message own" : "message"
+                (message.senderId.id || message.senderId._id) === user.id ? "message own" : "message"
               }
             >
               <div className="message-meta">{message.senderId.name}</div>
@@ -270,7 +270,7 @@ export default function ChatPage() {
               style={{ cursor: "pointer", fontSize: "24px", opacity: (!activeConversation || sending) ? 0.5 : 1, pointerEvents: (!activeConversation || sending) ? "none" : "auto" }}
               title="Attach image"
             >
-              📷
+              ðŸ“·
             </label>
             <input
               value={draft}
@@ -288,3 +288,7 @@ export default function ChatPage() {
     </div>
   );
 }
+
+
+
+

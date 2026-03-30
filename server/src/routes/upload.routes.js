@@ -1,10 +1,10 @@
-import express from "express";
+﻿import express from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
-import { requireAuth } from "../middleware/auth";
-import { AuthenticatedRequest } from "../types/express";
+import { requireAuth } from "../middleware/auth.js";
+
 
 const router = express.Router();
 
@@ -27,7 +27,7 @@ const storage = multer.diskStorage({
 });
 
 // File filter to allow only image files
-const fileFilter = (_req: express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = (_req, file, cb) => {
   if (file.mimetype.startsWith("image/")) {
     cb(null, true);
   } else {
@@ -52,9 +52,12 @@ router.post("/", requireAuth, upload.single("image"), (req, res) => {
     // Return the URL that can be used to access the image
     const imageUrl = `/uploads/${req.file.filename}`;
     res.status(201).json({ url: imageUrl });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ error: error.message || "Failed to upload image" });
   }
 });
 
 export default router;
+
+
+

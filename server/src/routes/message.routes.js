@@ -1,13 +1,13 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { Types } from "mongoose";
-import { requireAuth } from "../middleware/auth";
-import { Conversation } from "../models/Conversation";
-import { Message } from "../models/Message";
-import { AuthenticatedRequest } from "../types/express";
+import { requireAuth } from "../middleware/auth.js";
+import { Conversation } from "../models/Conversation.js";
+import { Message } from "../models/Message.js";
+
 
 const messageRouter = Router();
 
-messageRouter.get("/:conversationId", requireAuth, async (req: AuthenticatedRequest, res) => {
+messageRouter.get("/:conversationId", requireAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
 
@@ -21,13 +21,9 @@ messageRouter.get("/:conversationId", requireAuth, async (req: AuthenticatedRequ
   }
 });
 
-messageRouter.post("/", requireAuth, async (req: AuthenticatedRequest, res) => {
+messageRouter.post("/", requireAuth, async (req, res) => {
   try {
-    const { message, image, conversationId } = req.body as {
-      message?: string;
-      image?: string;
-      conversationId?: string;
-    };
+    const { message, image, conversationId } = req.body;
 
     if (!conversationId) {
       res.status(400).json({ message: "conversationId is required" });
@@ -66,3 +62,7 @@ messageRouter.post("/", requireAuth, async (req: AuthenticatedRequest, res) => {
 });
 
 export default messageRouter;
+
+
+
+

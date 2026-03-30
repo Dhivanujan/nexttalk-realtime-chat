@@ -1,24 +1,14 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { AppUser } from "../types";
 import { api } from "../lib/api";
 
-interface AuthContextValue {
-  user: AppUser | null;
-  token: string | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const AuthContext = createContext(undefined);
 
 const USER_KEY = "nexttalk-user";
 const TOKEN_KEY = "nexttalk-token";
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,10 +23,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  async function login(email: string, password: string): Promise<void> {
+  async function login(email, password) {
     const response = await api.post("/auth/login", { email, password });
-    const nextToken = response.data.token as string;
-    const nextUser = response.data.user as AppUser;
+    const nextToken = response.data.token;
+    const nextUser = response.data.user;
 
     localStorage.setItem(TOKEN_KEY, nextToken);
     localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
@@ -45,12 +35,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(nextUser);
   }
 
-  async function register(name: string, email: string, password: string): Promise<void> {
+  async function register(name, email, password) {
     await api.post("/auth/register", { name, email, password });
     await login(email, password);
   }
 
-  function logout(): void {
+  function logout() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     setToken(null);
@@ -65,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth(): AuthContextValue {
+export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error("useAuth must be used within AuthProvider");

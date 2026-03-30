@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -10,7 +10,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  async function onSubmit(event: FormEvent) {
+  async function onSubmit(event) {
     event.preventDefault();
     setError("");
     setSubmitting(true);
@@ -18,7 +18,7 @@ export default function LoginPage() {
     try {
       await login(email, password);
       navigate("/chat");
-    } catch (err: any) {
+    } catch (err) {
       setError(err?.response?.data?.message || "Failed to login");
     } finally {
       setSubmitting(false);

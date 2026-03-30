@@ -1,18 +1,7 @@
-import mongoose, { Document, Model, Schema, model } from "mongoose";
+﻿import pkg from "mongoose";
+const { Schema, model } = pkg;
 
-export interface IUser extends Document {
-  name: string;
-  email: string;
-  password?: string;
-  image?: string;
-  bio?: string;
-  isOnline: boolean;
-  lastSeen: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const UserSchema = new Schema<IUser>(
+const UserSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true },
@@ -25,5 +14,4 @@ const UserSchema = new Schema<IUser>(
   { timestamps: true },
 );
 
-export const User: Model<IUser> =
-  mongoose.models.User || model<IUser>("User", UserSchema);
+export const User = pkg.models.User || model("User", UserSchema);

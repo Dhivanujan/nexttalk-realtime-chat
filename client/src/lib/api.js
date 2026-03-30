@@ -14,7 +14,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-export const uploadImage = async (file: File): Promise<string> => {
+export const uploadImage = async (file) => {
   const formData = new FormData();
   formData.append("image", file);
   

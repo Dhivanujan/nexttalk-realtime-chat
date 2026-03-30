@@ -1,6 +1,6 @@
-import mongoose from "mongoose";
+﻿import mongoose from "mongoose";
 
-export async function connectDatabase(uri: string): Promise<void> {
+export async function connectDatabase(uri) {
   if (mongoose.connection.readyState >= 1) {
     return;
   }
@@ -9,3 +9,5 @@ export async function connectDatabase(uri: string): Promise<void> {
     dbName: uri.includes("mongodb.net") ? undefined : "next-talk-mern",
   });
 }
+
+

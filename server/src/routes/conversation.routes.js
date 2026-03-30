@@ -1,13 +1,13 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { Types } from "mongoose";
-import { requireAuth } from "../middleware/auth";
-import { Conversation } from "../models/Conversation";
-import { Message } from "../models/Message";
-import { AuthenticatedRequest } from "../types/express";
+import { requireAuth } from "../middleware/auth.js";
+import { Conversation } from "../models/Conversation.js";
+import { Message } from "../models/Message.js";
+
 
 const conversationRouter = Router();
 
-conversationRouter.get("/", requireAuth, async (req: AuthenticatedRequest, res) => {
+conversationRouter.get("/", requireAuth, async (req, res) => {
   try {
     const conversations = await Conversation.find({ users: req.userId })
       .populate("users", "name email image bio isOnline")
@@ -20,14 +20,9 @@ conversationRouter.get("/", requireAuth, async (req: AuthenticatedRequest, res) 
   }
 });
 
-conversationRouter.post("/", requireAuth, async (req: AuthenticatedRequest, res) => {
+conversationRouter.post("/", requireAuth, async (req, res) => {
   try {
-    const { userId, isGroup, members, name } = req.body as {
-      userId?: string;
-      isGroup?: boolean;
-      members?: string[];
-      name?: string;
-    };
+    const { userId, isGroup, members, name } = req.body;
 
     if (isGroup) {
       if (!members || members.length < 2 || !name) {
@@ -35,7 +30,7 @@ conversationRouter.post("/", requireAuth, async (req: AuthenticatedRequest, res)
         return;
       }
 
-      const userIds = [...new Set([...members, req.userId as string])].map((id) => new Types.ObjectId(id));
+      const userIds = [...new Set([...members, req.userId ])].map((id) => new Types.ObjectId(id));
 
       const conversation = await Conversation.create({
         name,
@@ -85,7 +80,7 @@ conversationRouter.post("/", requireAuth, async (req: AuthenticatedRequest, res)
   }
 });
 
-conversationRouter.post("/:conversationId/seen", requireAuth, async (req: AuthenticatedRequest, res) => {
+conversationRouter.post("/:conversationId/seen", requireAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
 
@@ -110,3 +105,7 @@ conversationRouter.post("/:conversationId/seen", requireAuth, async (req: Authen
 });
 
 export default conversationRouter;
+
+
+
+
