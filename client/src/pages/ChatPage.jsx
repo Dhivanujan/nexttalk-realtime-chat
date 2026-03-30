@@ -71,7 +71,17 @@ export default function ChatPage() {
 
     socket.on("receive-message", (message) => {
       if (message.conversationId === activeConversation?._id) {
-        setMessages((current) => [...current, message]);
+        setMessages((current) => {
+          // Prevent duplicates if already there
+          if (current.some(m => m._id === message._id)) return current;
+          return [...current, message];
+        });
+        
+        // Notify sender it was delivered (or read if window is active)
+        if (message.senderId._id !== user.id) {
+           api.post(`/conversations/${message.conversationId}/seen`);
+           socket.emit("message-seen", { messageId: message._id, conversationId: message.conversationId, userId: user.id });
+        }
       }
 
       setConversations((current) => {
@@ -115,12 +125,23 @@ export default function ChatPage() {
       setOnlineUserIds(new Set(userIds));
     });
 
+    socket.on("message-status-update", ({ messageId, status, conversationId }) => {
+      if (conversationId === activeConversation?._id) {
+        setMessages(current => current.map(msg => 
+          msg._id === messageId || msg.status === 'sent' // Optimistically update previous as well
+            ? { ...msg, status } 
+            : msg
+        ));
+      }
+    });
+
     return () => {
       socket.off("receive-message");
       socket.off("new-conversation");
       socket.off("user-typing");
       socket.off("user-stop-typing");
       socket.off("online-users");
+      socket.off("message-status-update");
     };
   }, [socket, user, activeConversation?._id]);
 
@@ -237,6 +258,22 @@ export default function ChatPage() {
     entry.name.toLowerCase().includes(contactSearch.toLowerCase()) || entry.email.toLowerCase().includes(contactSearch.toLowerCase()),
   );
 
+  const renderMessageStatus = (message) => {
+    if ((message.senderId.id || message.senderId._id) !== user.id) return null;
+    
+    // Status can be accessed optionally if mapped, but if seenIds is populated correctly we can fall back to checking that
+    // If the conversation's other user is in seenIds, it's read.
+    const isRead = message.status === 'read' || (message.seenIds && message.seenIds.some(id => id !== user.id && id !== user._id));
+    if (isRead) {
+      return <span style={{ color: '#4ade80', fontSize: '12px', marginLeft: '5px' }}>✓✓</span>;
+    }
+    if (message.status === 'delivered') {
+      return <span style={{ color: '#9ca3af', fontSize: '12px', marginLeft: '5px' }}>✓✓</span>;
+    }
+    // Default sent
+    return <span style={{ color: '#9ca3af', fontSize: '12px', marginLeft: '5px' }}>✓</span>;
+  };
+
   if (!user) {
     return null;
   }
@@ -345,6 +382,9 @@ export default function ChatPage() {
                 </div>
               )}
               {message.body && <div>{message.body}</div>}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
+                {renderMessageStatus(message)}
+              </div>
             </div>
           ))}
           {activeConversation && Array.from(typingUsers).filter(id => activeConversation.users.some(u => (u._id || u.id) === id)).length > 0 && (

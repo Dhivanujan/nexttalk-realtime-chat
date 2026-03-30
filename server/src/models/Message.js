@@ -8,6 +8,7 @@ const MessageSchema = new Schema(
     conversationId: { type: Schema.Types.ObjectId, ref: "Conversation", required: true },
     senderId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     seenIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    status: { type: String, enum: ['sent', 'delivered', 'read'], default: 'sent' },
   },
   { timestamps: true },
 );

@@ -87,6 +87,14 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("user-stop-typing", { userId });
   });
 
+  socket.on("message-delivered", ({ messageId, conversationId }) => {
+    socket.to(conversationId).emit("message-status-update", { messageId, status: "delivered", conversationId });
+  });
+
+  socket.on("message-seen", ({ messageId, conversationId }) => {
+    socket.to(conversationId).emit("message-status-update", { messageId, status: "read", conversationId });
+  });
+
   socket.on("disconnect", async () => {
     let disconnectedUserId = null;
 

@@ -95,7 +95,23 @@ conversationRouter.post("/:conversationId/seen", requireAuth, async (req, res) =
 
     if (!hasSeen) {
       latestMessage.seenIds.push(userObjectId);
+      if (latestMessage.senderId.toString() !== req.userId) {
+        latestMessage.status = "read";
+      }
       await latestMessage.save();
+      
+      // Update all unread messages in this conversation
+      await Message.updateMany(
+        { 
+          conversationId, 
+          senderId: { $ne: userObjectId }, 
+          seenIds: { $ne: userObjectId } 
+        },
+        { 
+          $push: { seenIds: userObjectId },
+          $set: { status: "read" }
+        }
+      );
     }
 
     res.json(latestMessage);

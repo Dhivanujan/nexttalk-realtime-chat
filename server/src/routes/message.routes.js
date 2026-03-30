@@ -41,6 +41,7 @@ messageRouter.post("/", requireAuth, async (req, res) => {
       conversationId: new Types.ObjectId(conversationId),
       senderId: new Types.ObjectId(req.userId),
       seenIds: [new Types.ObjectId(req.userId)],
+      status: 'sent'
     });
 
     await Conversation.findByIdAndUpdate(conversationId, {
