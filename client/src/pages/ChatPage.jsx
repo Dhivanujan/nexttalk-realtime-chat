@@ -26,6 +26,7 @@ export default function ChatPage() {
   const [typingUsers, setTypingUsers] = useState(new Set());
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef(null);
+  const [zoomedImage, setZoomedImage] = useState(null);
   
   // Pagination & Load More State
   const [cursor, setCursor] = useState(null);
@@ -442,13 +443,21 @@ export default function ChatPage() {
                 (message.senderId.id || message.senderId._id) === user.id ? "message own" : "message"
               }
             >
-              <div className="message-meta">{message.senderId.name}</div>
+              <div className="message-meta">
+                {message.senderId.name} 
+                <span style={{ marginLeft: "6px", fontSize: "10px", color: "#9ca3af" }}>
+                  {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
               {message.image && (
                 <div style={{ marginBottom: "5px" }}>
                   <img
                     src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`}
                     alt="attachment"
-                    style={{ maxWidth: "250px", borderRadius: "8px", display: "block" }}
+                    onClick={() => setZoomedImage(`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`)}
+                    style={{ maxWidth: "250px", borderRadius: "8px", display: "block", cursor: "pointer", transition: "opacity 0.2s" }}
+                    onMouseOver={e => e.currentTarget.style.opacity = 0.8}
+                    onMouseOut={e => e.currentTarget.style.opacity = 1}
                   />
                 </div>
               )}
@@ -468,11 +477,15 @@ export default function ChatPage() {
         <form className="composer" onSubmit={sendMessage} style={{ flexDirection: "column", gap: "10px" }}>
           {imageFile && (
             <div className="image-preview" style={{ padding: "8px", background: "#f0f0f0", borderRadius: "4px", alignSelf: "flex-start", display: "flex", gap: "10px", alignItems: "center" }}>
-              <span style={{ fontSize: "14px", color: "#333" }}>{imageFile.name}</span>
+              <img src={URL.createObjectURL(imageFile)} alt="preview" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} />
+              <span style={{ fontSize: "14px", color: "#333", maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {imageFile.name}
+              </span>
               <button 
                 type="button" 
                 onClick={() => setImageFile(null)}
-                style={{ padding: "2px 6px", background: "#ff4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                disabled={sending}
+                style={{ padding: "2px 6px", background: "#ff4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", opacity: sending ? 0.5 : 1 }}
               >
                 X
               </button>
@@ -498,14 +511,29 @@ export default function ChatPage() {
               onChange={handleTyping}
               placeholder="Write a message"
               disabled={!activeConversation || sending}
-              style={{ flex: 1 }}
+              style={{ flex: 1, padding: '10px' }}
             />
-            <button type="submit" disabled={!activeConversation || sending}>
-              Send
+            <button type="submit" disabled={!activeConversation || sending || (!draft.trim() && !imageFile)}>
+              {sending ? 'Sending...' : 'Send'}
             </button>
           </div>
         </form>
       </main>
+
+      {zoomedImage && (
+        <div 
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+          onClick={() => setZoomedImage(null)}
+        >
+          <button 
+            style={{ position: 'absolute', top: 20, right: 20, background: 'none', border: 'none', color: 'white', fontSize: 30, cursor: 'pointer' }}
+            onClick={() => setZoomedImage(null)}
+          >
+            &times;
+          </button>
+          <img src={zoomedImage} alt="zoomed" style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain', borderRadius: 8 }} />
+        </div>
+      )}
     </div>
   );
 }
