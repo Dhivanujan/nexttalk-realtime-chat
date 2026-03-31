@@ -58,6 +58,13 @@ export default function ChatPage() {
       setContacts(contactsResponse.data);
       setConversations(conversationResponse.data);
 
+      if (!socket.connected) socket.connect();
+
+      // Join rooms for all existing conversations to receive background messages
+      conversationResponse.data.forEach((conv) => {
+        socket.emit("join-room", conv._id);
+      });
+
       if (conversationResponse.data.length > 0) {
         setActiveConversation(conversationResponse.data[0]);
       }
@@ -272,11 +279,37 @@ export default function ChatPage() {
         imageUrl = await uploadImage(file);
       }
 
-      await api.post("/messages", {
+      const response = await api.post("/messages", {
         message: text.trim() ? text : undefined,
         image: imageUrl,
         conversationId: activeConversation._id,
       });
+
+      const newMessage = response.data;
+
+      // Optimistically update the message stream
+      setMessages((current) => {
+        if (current.some(m => m._id === newMessage._id)) return current;
+        setTimeout(() => {
+          if (messageStreamRef.current) {
+            messageStreamRef.current.scrollTop = messageStreamRef.current.scrollHeight;
+          }
+        }, 50);
+        return [...current, newMessage];
+      });
+
+      // BUMP conversation to top locally immediately
+      setConversations((current) => {
+        const next = [...current];
+        const index = next.findIndex((c) => c._id === newMessage.conversationId);
+        if (index >= 0) {
+          const conversation = { ...next[index], lastMessage: newMessage };
+          next.splice(index, 1);
+          return [conversation, ...next];
+        }
+        return current;
+      });
+
     } catch (err) {
       console.error("Failed to send message", err);
     } finally {
