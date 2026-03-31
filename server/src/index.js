@@ -3,6 +3,9 @@ import path from "path";
 import { createServer } from "http";
 import cors from "cors";
 import express from "express";
+import helmet from "helmet";
+import cookieParser from "cookie-parser";
+import { rateLimit } from "express-rate-limit";
 import { Server } from "socket.io";
 import { connectDatabase } from "./config/db.js";
 import authRouter from "./routes/auth.routes.js";
@@ -34,6 +37,10 @@ const io = new Server(httpServer, {
 
 app.set("io", io);
 
+// Security Headers
+app.use(helmet());
+app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
+
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:5173",
@@ -41,12 +48,20 @@ app.use(
   }),
 );
 app.use(express.json());
+app.use(cookieParser());
+
+// Rate limiting for auth routes to prevent brute force
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // limit each IP to 20 requests per windowMs
+  message: { message: "Too many login attempts, please try again after 15 minutes" },
+});
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-app.use("/api/auth", authRouter);
+app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/users", userRouter);
 app.use("/api/conversations", conversationRouter);
 app.use("/api/messages", messageRouter);

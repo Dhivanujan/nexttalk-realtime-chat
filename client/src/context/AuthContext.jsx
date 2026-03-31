@@ -8,48 +8,46 @@ const TOKEN_KEY = "nexttalk-token";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem(TOKEN_KEY);
-    const storedUser = localStorage.getItem(USER_KEY);
-
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
-    }
-
-    setLoading(false);
+    // Attempt to hydrate user data directly from the server using the http-only cookie
+    const fetchUser = async () => {
+      try {
+        const response = await api.get("/auth/me");
+        setUser(response.data.user);
+      } catch (err) {
+        // Not authenticated, just clear
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUser();
   }, []);
 
   async function login(email, password) {
     const response = await api.post("/auth/login", { email, password });
-    const nextToken = response.data.token;
-    const nextUser = response.data.user;
-
-    localStorage.setItem(TOKEN_KEY, nextToken);
-    localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
-
-    setToken(nextToken);
-    setUser(nextUser);
+    setUser(response.data.user);
   }
 
   async function register(name, email, password) {
     await api.post("/auth/register", { name, email, password });
-    await login(email, password);
+    await login(email, password); // log them in automatically
   }
 
-  function logout() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    setToken(null);
+  async function logout() {
+    try {
+      await api.post("/auth/logout");
+    } catch(e) {
+      console.error(e);
+    }
     setUser(null);
   }
 
   const value = useMemo(
-    () => ({ user, token, loading, login, register, logout }),
-    [user, token, loading],
+    () => ({ user, loading, login, register, logout }),
+    [user, loading],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
