@@ -43,31 +43,32 @@ messageRouter.get("/:conversationId", requireAuth, async (req, res) => {
 
 messageRouter.post("/", requireAuth, async (req, res) => {
   try {
-    const { message, image, conversationId } = req.body;
+    const { message, image, audio, conversationId } = req.body;
 
     if (!conversationId) {
       res.status(400).json({ message: "conversationId is required" });
       return;
     }
 
-    if (!message && !image) {
-      res.status(400).json({ message: "message or image is required" });
+    if (!message && !image && !audio) {
+      res.status(400).json({ message: "message, image, or audio is required" });
       return;
     }
 
     const newMessage = await Message.create({
       body: message,
       image,
+      audio,
       conversationId: new Types.ObjectId(conversationId),
       senderId: new Types.ObjectId(req.userId),
       seenIds: [new Types.ObjectId(req.userId)],
       status: 'sent'
     });
 
-    await Conversation.findByIdAndUpdate(conversationId, {
+    const conversation = await Conversation.findByIdAndUpdate(conversationId, {
       $set: { lastMessage: newMessage._id, updatedAt: new Date() },
       $push: { messagesIds: newMessage._id },
-    });
+    }).populate("users", "pushSubscription _id");
 
     const populatedMessage = await Message.findById(newMessage._id).populate("senderId", "name email image");
 
@@ -75,6 +76,24 @@ messageRouter.post("/", requireAuth, async (req, res) => {
     if (io) {
       io.to(conversationId).emit("receive-message", populatedMessage);
     }
+    
+    // Send Push Notifications
+    import("../lib/push.js").then(({ sendPushNotification }) => {
+      const senderName = populatedMessage.senderId.name;
+      const notificationPayload = {
+        title: `New message from ${senderName}`,
+        body: message || (audio ? "🎤 Audio message" : "📷 Image"),
+        icon: populatedMessage.senderId.image || "/favicon.ico",
+        url: `/?conversation=${conversationId}`
+      };
+      
+      const otherUsers = conversation.users.filter(u => u._id.toString() !== req.userId);
+      otherUsers.forEach(u => {
+        if (u.pushSubscription) {
+          sendPushNotification(u.pushSubscription, notificationPayload);
+        }
+      });
+    }).catch(console.error);
 
     res.status(201).json(populatedMessage);
   } catch (error) {

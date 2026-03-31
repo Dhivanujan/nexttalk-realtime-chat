@@ -7,9 +7,9 @@ export const api = axios.create({
   withCredentials: true, // Crucial: Send cookies on every request!
 });
 
-export const uploadImage = async (file) => {
+export const uploadFile = async (file) => {
   const formData = new FormData();
-  formData.append("image", file);
+  formData.append("file", file);
   
   const response = await api.post("/upload", formData, {
     headers: {
@@ -19,3 +19,6 @@ export const uploadImage = async (file) => {
   
   return response.data.url;
 };
+
+// Kept for backwards compatibility
+export const uploadImage = uploadFile;

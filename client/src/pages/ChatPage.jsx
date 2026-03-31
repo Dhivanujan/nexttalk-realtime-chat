@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
-import { api, uploadImage } from "../lib/api";
+import { api, uploadFile } from "../lib/api";
 import { getSocket } from "../lib/socket";
 
 
@@ -27,6 +27,13 @@ export default function ChatPage() {
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef(null);
   const [zoomedImage, setZoomedImage] = useState(null);
+  
+  // Voice Notes
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
   
   // Pagination & Load More State
   const [cursor, setCursor] = useState(null);
@@ -71,6 +78,37 @@ export default function ChatPage() {
     })().catch(() => {
       // Keep UI stable on fetch failures; user can retry by refresh.
     });
+
+    // Request Push Notification Subscription
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.register('/service-worker.js').then(async (registration) => {
+        try {
+          const publicVapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+          if (!publicVapidKey) return;
+          
+          // Helper to convert base64 to Uint8Array
+          const urlBase64ToUint8Array = (base64String) => {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+              outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+          };
+
+          const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+          });
+          
+          await api.post('/users/push/subscribe', { subscription });
+        } catch (err) {
+          console.log("Could not subscribe to push notifications", err);
+        }
+      });
+    }
   }, [user]);
 
   useEffect(() => {
@@ -258,9 +296,49 @@ export default function ChatPage() {
     }, 2000);
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlobObj = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(audioBlobObj);
+        setAudioUrl(URL.createObjectURL(audioBlobObj));
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Error accessing microphone", err);
+      alert("Microphone access denied or unavailable.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const cancelRecording = () => {
+    setAudioBlob(null);
+    setAudioUrl(null);
+  };
+
   async function sendMessage(event) {
-    event.preventDefault();
-    if ((!draft.trim() && !imageFile) || !activeConversation) {
+    if (event) event.preventDefault();
+    if ((!draft.trim() && !imageFile && !audioBlob) || !activeConversation) {
       return;
     }
 
@@ -270,18 +348,29 @@ export default function ChatPage() {
     
     const text = draft;
     const file = imageFile;
+    const audio = audioBlob;
     setDraft("");
     setImageFile(null);
+    setAudioBlob(null);
+    setAudioUrl(null);
 
     try {
       let imageUrl = undefined;
       if (file) {
-        imageUrl = await uploadImage(file);
+        imageUrl = await uploadFile(file); // assuming we renamed and exported uploadFile
+      }
+      
+      let uploadedAudioUrl = undefined;
+      if (audio) {
+        // We'll rename uploadImage to uploadFile in api.js and use it here
+        const audioFile = new File([audio], "audio.webm", { type: "audio/webm" });
+        uploadedAudioUrl = await uploadFile(audioFile);
       }
 
       const response = await api.post("/messages", {
         message: text.trim() ? text : undefined,
         image: imageUrl,
+        audio: uploadedAudioUrl,
         conversationId: activeConversation._id,
       });
 
@@ -409,7 +498,11 @@ export default function ChatPage() {
                   <strong>{getConversationTitle(conversation, user.id)}</strong>
                   {isOtherUserOnline && <div style={{width: 8, height: 8, borderRadius: '50%', background: '#4ade80'}} title="Online" />}
                 </div>
-                <span>{conversation.lastMessage?.body || "No messages yet"}</span>
+                <span>
+                  {conversation.lastMessage?.audio ? "🎤 Audio message" : 
+                   conversation.lastMessage?.image ? "📷 Image" : 
+                   conversation.lastMessage?.body || "No messages yet"}
+                </span>
               </button>
             )})}
           </div>
@@ -495,6 +588,11 @@ export default function ChatPage() {
                 </div>
               )}
               {message.body && <div>{message.body}</div>}
+              {message.audio && (
+                <div style={{ marginTop: "5px" }}>
+                  <audio controls src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.audio}`} style={{ width: "250px", height: "40px" }} />
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
                 {renderMessageStatus(message)}
               </div>
@@ -524,6 +622,19 @@ export default function ChatPage() {
               </button>
             </div>
           )}
+          {audioUrl && (
+            <div className="audio-preview" style={{ padding: "8px", background: "#f0f0f0", borderRadius: "4px", alignSelf: "flex-start", display: "flex", gap: "10px", alignItems: "center" }}>
+              <audio controls src={audioUrl} style={{ height: "30px" }} />
+              <button 
+                type="button" 
+                onClick={cancelRecording}
+                disabled={sending}
+                style={{ padding: "2px 6px", background: "#ff4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", opacity: sending ? 0.5 : 1 }}
+              >
+                X
+              </button>
+            </div>
+          )}
           <div style={{ display: "flex", width: "100%", gap: "10px", alignItems: "center" }}>
             <input
               type="file"
@@ -537,17 +648,37 @@ export default function ChatPage() {
               style={{ cursor: "pointer", fontSize: "24px", opacity: (!activeConversation || sending) ? 0.5 : 1, pointerEvents: (!activeConversation || sending) ? "none" : "auto" }}
               title="Attach image"
             >
-              ðŸ“·
+              📷
             </label>
+            {!isRecording ? (
+              <button
+                type="button"
+                onClick={startRecording}
+                disabled={!activeConversation || sending}
+                style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "24px", padding: 0, opacity: (!activeConversation || sending) ? 0.5 : 1 }}
+                title="Record audio"
+              >
+                🎤
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={stopRecording}
+                style={{ background: "#ff4444", color: "white", border: "none", borderRadius: "50%", cursor: "pointer", width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                title="Stop recording"
+              >
+                ⏹
+              </button>
+            )}
             <input
               value={draft}
               onChange={handleTyping}
               placeholder="Write a message"
-              disabled={!activeConversation || sending}
-              style={{ flex: 1, padding: '10px' }}
+              disabled={!activeConversation || sending || isRecording}
+              style={{ flex: 1, padding: '10px', opacity: isRecording ? 0.5 : 1 }}
             />
-            <button type="submit" disabled={!activeConversation || sending || (!draft.trim() && !imageFile)}>
-              {sending ? 'Sending...' : 'Send'}
+            <button type="submit" disabled={!activeConversation || sending || isRecording || (!draft.trim() && !imageFile && !audioBlob)}>
+              {sending ? '...' : 'Send'}
             </button>
           </div>
         </form>

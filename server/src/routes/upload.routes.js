@@ -26,34 +26,34 @@ const storage = multer.diskStorage({
   },
 });
 
-// File filter to allow only image files
+// File filter to allow images and audio files
 const fileFilter = (_req, file, cb) => {
-  if (file.mimetype.startsWith("image/")) {
+  if (file.mimetype.startsWith("image/") || file.mimetype.startsWith("audio/") || file.mimetype.startsWith("video/")) {
     cb(null, true);
   } else {
-    cb(new Error("Not an image! Please upload an image."));
+    cb(new Error("Invalid file type! Please upload an image or audio file."));
   }
 };
 
 const upload = multer({
   storage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
+    fileSize: 10 * 1024 * 1024, // 10MB limit
   },
   fileFilter,
 });
 
-router.post("/", requireAuth, upload.single("image"), (req, res) => {
+router.post("/", requireAuth, upload.single("file"), (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: "No image file provided" });
+      return res.status(400).json({ error: "No file provided" });
     }
 
-    // Return the URL that can be used to access the image
-    const imageUrl = `/uploads/${req.file.filename}`;
-    res.status(201).json({ url: imageUrl });
+    // Return the URL that can be used to access the file
+    const fileUrl = `/uploads/${req.file.filename}`;
+    res.status(201).json({ url: fileUrl });
   } catch (error) {
-    res.status(500).json({ error: error.message || "Failed to upload image" });
+    res.status(500).json({ error: error.message || "Failed to upload file" });
   }
 });
 

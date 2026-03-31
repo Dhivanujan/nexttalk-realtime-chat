@@ -11,6 +11,7 @@ const UserSchema = new Schema(
     isOnline: { type: Boolean, default: false },
     lastSeen: { type: Date, default: Date.now },
     contacts: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    pushSubscription: { type: Schema.Types.Mixed, default: null },
   },
   { timestamps: true },
 );

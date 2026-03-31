@@ -14,6 +14,7 @@ import messageRouter from "./routes/message.routes.js";
 import userRouter from "./routes/user.routes.js";
 import uploadRouter from "./routes/upload.routes.js";
 import { User } from "./models/User.js";
+import { initWebPush } from "./lib/push.js";
 
 const cwd = process.cwd();
 const repoRoot = path.resolve(cwd, "..");
@@ -24,6 +25,9 @@ dotenv.config({ path: path.resolve(cwd, "server/.env") });
 dotenv.config({ path: path.resolve(repoRoot, ".env") });
 dotenv.config({ path: path.resolve(repoRoot, ".env.local") });
 dotenv.config({ path: path.resolve(repoRoot, "server/.env") });
+
+// Initialize Web Push
+initWebPush();
 
 const app = express();
 const httpServer = createServer(app);

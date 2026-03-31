@@ -5,6 +5,16 @@ import { User } from "../models/User.js";
 
 const userRouter = Router();
 
+userRouter.post("/push/subscribe", requireAuth, async (req, res) => {
+  try {
+    const { subscription } = req.body;
+    await User.findByIdAndUpdate(req.userId, { pushSubscription: subscription });
+    res.status(200).json({ message: "Subscription saved" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to save subscription" });
+  }
+});
+
 userRouter.get("/search", requireAuth, async (req, res) => {
   try {
     const { query } = req.query;
