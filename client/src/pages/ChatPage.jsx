@@ -55,6 +55,20 @@ export default function ChatPage() {
   const [profileBio, setProfileBio] = useState(user?.bio || "");
   const [profileImageFile, setProfileImageFile] = useState(null);
 
+  // Theme State
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem("chat-theme") || "light";
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("chat-theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === "light" ? "dark" : "light");
+  };
+
   const socket = useMemo(() => getSocket(), []);
 
   useEffect(() => {
@@ -549,15 +563,21 @@ export default function ChatPage() {
               <small>{user.name}</small>
             </div>
           </div>
-          <button className="ghost" onClick={logout} type="button">
-            Logout
-          </button>
-        </div>
-
-        <section>
-          <h3>Conversations</h3>
-          <div className="list">
-            {conversations.map((conversation) => {
+            
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                className="ghost" 
+                onClick={toggleTheme} 
+                type="button" 
+                title="Toggle Dark Mode"
+                style={{ padding: '0.4rem' }}
+              >
+                {theme === 'light' ? '🌙' : '☀️'}
+              </button>
+              <button className="ghost" onClick={logout} type="button">
+                Logout
+              </button>
+            </div>
               const isOtherUserOnline = conversation.isGroup ? false : conversation.users.some(u => (u._id !== user.id && u.id !== user.id) && onlineUserIds.has(u._id || u.id));
               return (
               <button
