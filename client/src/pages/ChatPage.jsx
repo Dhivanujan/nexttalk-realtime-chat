@@ -16,6 +16,8 @@ function getConversationTitle(conversation, currentUserId) {
 export default function ChatPage() {
   const { user, logout } = useAuth();
   const [contacts, setContacts] = useState([]);
+  const [allUsers, setAllUsers] = useState([]); // All registered users
+  const [showDirectory, setShowDirectory] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -77,13 +79,15 @@ export default function ChatPage() {
     }
 
     (async () => {
-      const [contactsResponse, conversationResponse] = await Promise.all([
+      const [contactsResponse, conversationResponse, allUsersResponse] = await Promise.all([
         api.get("/users/contacts"),
         api.get("/conversations"),
+        api.get("/users"),
       ]);
 
       setContacts(contactsResponse.data);
       setConversations(conversationResponse.data);
+      setAllUsers(allUsersResponse.data);
 
       if (!socket.connected) socket.connect();
 
@@ -522,6 +526,10 @@ export default function ChatPage() {
     entry.name.toLowerCase().includes(contactSearch.toLowerCase()) || entry.email.toLowerCase().includes(contactSearch.toLowerCase()),
   );
 
+  const filteredUsers = allUsers.filter((entry) =>
+    entry.name.toLowerCase().includes(newContactEmail.toLowerCase()) || entry.email.toLowerCase().includes(newContactEmail.toLowerCase()),
+  );
+
   const renderMessageStatus = (message) => {
     if ((message.senderId.id || message.senderId._id) !== user.id) return null;
     
@@ -612,46 +620,94 @@ export default function ChatPage() {
         </section>
 
         <section>
-          <h3>Contacts</h3>
-          <input
-            className="search-input"
-            placeholder="Search contacts"
-            value={contactSearch}
-            onChange={(event) => setContactSearch(event.target.value)}
-          />
-          <div className="list compact" style={{ maxHeight: "200px", overflowY: "auto" }}>
-            {filteredContacts.map((targetUser) => (
-              <button
-                className="list-item"
-                key={targetUser.id || targetUser._id}
-                type="button"
-                onClick={() => startConversation(targetUser)}
-              >
-                <strong>{targetUser.name}</strong>
-                <span>{targetUser.email}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <h3>Add New Contact</h3>
-          <form style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '10px' }} onSubmit={handleAddContactByEmail}>
-            <div style={{ display: 'flex', gap: '5px' }}>
+          <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            Connections
+            <button
+              className="ghost"
+              onClick={() => setShowDirectory(!showDirectory)}
+              style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem' }}
+            >
+              {showDirectory ? "Hide Global Directory" : "Global Directory"}
+            </button>
+          </h3>
+          
+          {showDirectory ? (
+            <>
               <input
                 className="search-input"
-                style={{ margin: 0, flex: 1 }}
-                type="email"
-                placeholder="Enter user email"
+                placeholder="Search registered users..."
                 value={newContactEmail}
-                onChange={(e) => setNewContactEmail(e.target.value)}
+                onChange={(event) => setNewContactEmail(event.target.value)}
+                style={{ marginBottom: '10px' }}
               />
-              <button type="submit" disabled={addingContact}>Add</button>
-            </div>
-            {addContactError && <span style={{ color: 'red', fontSize: '12px' }}>{addContactError}</span>}
-            {addContactSuccess && <span style={{ color: 'green', fontSize: '12px' }}>{addContactSuccess}</span>}
-          </form>
-        </section>
+              <div className="list compact" style={{ maxHeight: "250px", overflowY: "auto" }}>
+                {filteredUsers.map((targetUser) => (
+                  <button
+                    className="list-item"
+                    key={targetUser._id}
+                    type="button"
+                    onClick={() => {
+                      startConversation(targetUser);
+                      setShowDirectory(false);
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {targetUser.image ? (
+                        <img src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${targetUser.image}`} alt="avatar" style={{width: 30, height: 30, borderRadius: '50%', objectFit: 'cover'}} />
+                      ) : (
+                        <div style={{width: 30, height: 30, borderRadius: '50%', backgroundColor: '#00a884', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px'}}>
+                          {targetUser.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <strong>{targetUser.name}</strong>
+                        <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>{targetUser.email}</span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+                {filteredUsers.length === 0 && (
+                  <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    No registered users found.
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <input
+                className="search-input"
+                placeholder="Search existing contacts..."
+                value={contactSearch}
+                onChange={(event) => setContactSearch(event.target.value)}
+                style={{ marginBottom: '10px' }}
+              />
+              <div className="list compact" style={{ maxHeight: "250px", overflowY: "auto" }}>
+                {filteredContacts.map((targetUser) => (
+                  <button
+                    className="list-item"
+                    key={targetUser.id || targetUser._id}
+                    type="button"
+                    onClick={() => startConversation(targetUser)}
+                  >
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {targetUser.image ? (
+                        <img src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${targetUser.image}`} alt="avatar" style={{width: 30, height: 30, borderRadius: '50%', objectFit: 'cover'}} />
+                      ) : (
+                        <div style={{width: 30, height: 30, borderRadius: '50%', backgroundColor: '#007bff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px'}}>
+                          {targetUser.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <strong>{targetUser.name}</strong>
+                        <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>{targetUser.email}</span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
       </aside>
 
       <main className="chat-panel">
