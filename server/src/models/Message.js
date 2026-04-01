@@ -10,6 +10,7 @@ const MessageSchema = new Schema(
     senderId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     seenIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
     status: { type: String, enum: ['sent', 'delivered', 'read'], default: 'sent' },
+    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

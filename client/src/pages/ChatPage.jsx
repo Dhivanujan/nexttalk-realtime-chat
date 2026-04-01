@@ -49,6 +49,12 @@ export default function ChatPage() {
   const [addContactError, setAddContactError] = useState("");
   const [addContactSuccess, setAddContactSuccess] = useState("");
 
+  // Profile Edit State
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileName, setProfileName] = useState(user?.name || "");
+  const [profileBio, setProfileBio] = useState(user?.bio || "");
+  const [profileImageFile, setProfileImageFile] = useState(null);
+
   const socket = useMemo(() => getSocket(), []);
 
   useEffect(() => {
@@ -150,6 +156,10 @@ export default function ChatPage() {
 
         if (index >= 0) {
           const conversation = { ...next[index], lastMessage: message };
+          // Increment unread count if we are not actively in this format
+          if (message.conversationId !== activeConversation?._id && message.senderId._id !== user.id) {
+            conversation.unreadCount = (conversation.unreadCount || 0) + 1;
+          }
           next.splice(index, 1);
           return [conversation, ...next];
         }
@@ -195,6 +205,28 @@ export default function ChatPage() {
       }
     });
 
+    socket.on("message-deleted", ({ messageId, conversationId, body }) => {
+      if (conversationId === activeConversation?._id) {
+        setMessages((current) => current.map(msg => 
+          msg._id === messageId 
+            ? { ...msg, isDeleted: true, body, image: undefined, audio: undefined } 
+            : msg
+        ));
+      }
+
+      setConversations((current) => {
+        const next = [...current];
+        const index = next.findIndex((c) => c._id === conversationId);
+        if (index >= 0 && next[index].lastMessage?._id === messageId) {
+          next[index] = { 
+            ...next[index], 
+            lastMessage: { ...next[index].lastMessage, isDeleted: true, body, image: undefined, audio: undefined } 
+          };
+        }
+        return next;
+      });
+    });
+
     return () => {
       socket.off("receive-message");
       socket.off("new-conversation");
@@ -202,6 +234,7 @@ export default function ChatPage() {
       socket.off("user-stop-typing");
       socket.off("online-users");
       socket.off("message-status-update");
+      socket.off("message-deleted");
     };
   }, [socket, user, activeConversation?._id]);
 
@@ -215,6 +248,11 @@ export default function ChatPage() {
 
     setCursor(null);
     setHasMore(false);
+
+    // Clear unread count locally when opened
+    setConversations(current => 
+      current.map(c => c._id === activeConversation._id ? { ...c, unreadCount: 0 } : c)
+    );
 
     socket.emit("join-room", activeConversation._id);
 
@@ -406,6 +444,27 @@ export default function ChatPage() {
     }
   }
 
+  async function handleUpdateProfile(e) {
+    e.preventDefault();
+    try {
+      let imageUrl = user.image;
+      if (profileImageFile) {
+        imageUrl = await uploadFile(profileImageFile);
+      }
+      
+      await api.put("/users/profile", {
+        name: profileName,
+        bio: profileBio,
+        image: imageUrl
+      });
+
+      // Simple refresh to get new context
+      window.location.reload(); 
+    } catch (err) {
+      console.error("Failed to update profile", err);
+    }
+  }
+
   async function startConversation(targetUser) {
     const response = await api.post("/conversations", {
       userId: targetUser.id || targetUser._id,
@@ -472,10 +531,23 @@ export default function ChatPage() {
   return (
     <div className="chat-shell">
       <aside className="left-panel">
-        <div className="panel-header">
-          <div>
-            <h2>NextTalk MERN</h2>
-            <small>{user.name}</small>
+        <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div 
+            style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+            onClick={() => setIsEditingProfile(true)}
+            title="Edit Profile"
+          >
+            {user.image ? (
+              <img src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${user.image}`} alt="avatar" style={{width: 40, height: 40, borderRadius: '50%', objectFit: 'cover'}} />
+            ) : (
+              <div style={{width: 40, height: 40, borderRadius: '50%', backgroundColor: '#007bff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'}}>
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div>
+              <h2>NextTalk</h2>
+              <small>{user.name}</small>
+            </div>
           </div>
           <button className="ghost" onClick={logout} type="button">
             Logout
@@ -493,16 +565,27 @@ export default function ChatPage() {
                 className={conversation._id === activeConversation?._id ? "list-item active" : "list-item"}
                 type="button"
                 onClick={() => setActiveConversation(conversation)}
+                style={{ position: 'relative' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <strong>{getConversationTitle(conversation, user.id)}</strong>
                   {isOtherUserOnline && <div style={{width: 8, height: 8, borderRadius: '50%', background: '#4ade80'}} title="Online" />}
                 </div>
                 <span>
-                  {conversation.lastMessage?.audio ? "🎤 Audio message" : 
+                  {conversation.lastMessage?.isDeleted ? "🚫 This message was deleted" : 
+                   conversation.lastMessage?.audio ? "🎤 Audio message" : 
                    conversation.lastMessage?.image ? "📷 Image" : 
                    conversation.lastMessage?.body || "No messages yet"}
                 </span>
+                {conversation.unreadCount > 0 && (
+                  <div style={{
+                    position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
+                    background: '#25D366', color: 'white', borderRadius: '50%', padding: '2px 6px',
+                    fontSize: '10px', fontWeight: 'bold', minWidth: '18px', textAlign: 'center'
+                  }}>
+                    {conversation.unreadCount}
+                  </div>
+                )}
               </button>
             )})}
           </div>
@@ -569,31 +652,54 @@ export default function ChatPage() {
                 (message.senderId.id || message.senderId._id) === user.id ? "message own" : "message"
               }
             >
-              <div className="message-meta">
-                {message.senderId.name} 
-                <span style={{ marginLeft: "6px", fontSize: "10px", color: "#9ca3af" }}>
-                  {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
+              <div className="message-meta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  {message.senderId.name} 
+                </div>
+                {(message.senderId.id || message.senderId._id) === user.id && !message.isDeleted && (
+                  <button 
+                    onClick={() => {
+                       if (window.confirm("Delete this message for everyone?")) {
+                          api.delete(`/messages/${message._id}`).catch(err => console.error(err));
+                       }
+                    }}
+                    style={{ background: 'transparent', border: 'none', color: '#ff4444', cursor: 'pointer', fontSize: '12px' }}
+                    title="Delete message"
+                  >
+                    🗑
+                  </button>
+                )}
               </div>
-              {message.image && (
-                <div style={{ marginBottom: "5px" }}>
-                  <img
-                    src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`}
-                    alt="attachment"
-                    onClick={() => setZoomedImage(`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`)}
-                    style={{ maxWidth: "250px", borderRadius: "8px", display: "block", cursor: "pointer", transition: "opacity 0.2s" }}
-                    onMouseOver={e => e.currentTarget.style.opacity = 0.8}
-                    onMouseOut={e => e.currentTarget.style.opacity = 1}
-                  />
+              {message.isDeleted ? (
+                <div style={{ fontStyle: "italic", color: "#888", display: "flex", alignItems: "center", gap: "5px" }}>
+                  🚫 {message.body}
                 </div>
+              ) : (
+                <>
+                  {message.image && (
+                    <div style={{ marginBottom: "5px" }}>
+                      <img
+                        src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`}
+                        alt="attachment"
+                        onClick={() => setZoomedImage(`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`)}
+                        style={{ maxWidth: "250px", borderRadius: "8px", display: "block", cursor: "pointer", transition: "opacity 0.2s" }}
+                        onMouseOver={e => e.currentTarget.style.opacity = 0.8}
+                        onMouseOut={e => e.currentTarget.style.opacity = 1}
+                      />
+                    </div>
+                  )}
+                  {message.body && <div>{message.body}</div>}
+                  {message.audio && (
+                    <div style={{ marginTop: "5px" }}>
+                      <audio controls src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.audio}`} style={{ width: "250px", height: "40px" }} />
+                    </div>
+                  )}
+                </>
               )}
-              {message.body && <div>{message.body}</div>}
-              {message.audio && (
-                <div style={{ marginTop: "5px" }}>
-                  <audio controls src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.audio}`} style={{ width: "250px", height: "40px" }} />
-                </div>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2, alignItems: 'center', gap: '5px' }}>
+                <small style={{ fontSize: '10px', color: '#9ca3af' }}>
+                  {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </small>
                 {renderMessageStatus(message)}
               </div>
             </div>
@@ -696,6 +802,30 @@ export default function ChatPage() {
             &times;
           </button>
           <img src={zoomedImage} alt="zoomed" style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain', borderRadius: 8 }} />
+        </div>
+      )}
+
+      {isEditingProfile && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div style={{ background: 'white', padding: '20px', borderRadius: '8px', minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <h3>Edit Profile</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label>Name</label>
+              <input value={profileName} onChange={(e) => setProfileName(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label>Bio</label>
+              <textarea value={profileBio} onChange={(e) => setProfileBio(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd', minHeight: '60px' }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label>Avatar image</label>
+              <input type="file" accept="image/*" onChange={(e) => setProfileImageFile(e.target.files?.[0])} />
+            </div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
+              <button type="button" onClick={() => setIsEditingProfile(false)} style={{ background: '#eee', color: '#333', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
+              <button type="button" onClick={handleUpdateProfile} style={{ background: '#007bff', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Save Changes</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

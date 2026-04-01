@@ -101,6 +101,40 @@ messageRouter.post("/", requireAuth, async (req, res) => {
   }
 });
 
+messageRouter.delete("/:messageId", requireAuth, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    if (message.senderId.toString() !== req.userId) {
+      return res.status(403).json({ message: "You can only delete your own messages" });
+    }
+
+    message.isDeleted = true;
+    message.body = "This message was deleted";
+    message.image = undefined;
+    message.audio = undefined;
+    await message.save();
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(message.conversationId.toString()).emit("message-deleted", { 
+        messageId, 
+        conversationId: message.conversationId,
+        body: message.body 
+      });
+    }
+
+    res.status(200).json(message);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to delete message" });
+  }
+});
+
 export default messageRouter;
 
 

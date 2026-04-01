@@ -15,6 +15,21 @@ userRouter.post("/push/subscribe", requireAuth, async (req, res) => {
   }
 });
 
+userRouter.put("/profile", requireAuth, async (req, res) => {
+  try {
+    const { name, bio, image } = req.body;
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (bio !== undefined) updateData.bio = bio;
+    if (image !== undefined) updateData.image = image;
+
+    const user = await User.findByIdAndUpdate(req.userId, updateData, { new: true }).select("-password");
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update profile" });
+  }
+});
+
 userRouter.get("/search", requireAuth, async (req, res) => {
   try {
     const { query } = req.query;

@@ -12,9 +12,23 @@ conversationRouter.get("/", requireAuth, async (req, res) => {
     const conversations = await Conversation.find({ users: req.userId })
       .populate("users", "name email image bio isOnline")
       .populate({ path: "lastMessage", populate: { path: "senderId", select: "name email image" } })
-      .sort({ updatedAt: -1 });
+      .sort({ updatedAt: -1 })
+      .lean(); // Use lean to easily add virtual properties
 
-    res.json(conversations);
+    // Calculate unread counts
+    const userObjectId = new Types.ObjectId(req.userId);
+    const conversationsWithUnread = await Promise.all(
+      conversations.map(async (conv) => {
+        const unreadCount = await Message.countDocuments({
+          conversationId: conv._id,
+          seenIds: { $ne: userObjectId },
+          senderId: { $ne: userObjectId }
+        });
+        return { ...conv, unreadCount };
+      })
+    );
+
+    res.json(conversationsWithUnread);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch conversations" });
   }
