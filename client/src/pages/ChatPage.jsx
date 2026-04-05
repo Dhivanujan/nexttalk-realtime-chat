@@ -722,6 +722,7 @@ export default function ChatPage() {
               </div>
             </>
           )}
+        </section>
       </aside>
 
       <main className="chat-panel">
