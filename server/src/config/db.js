@@ -6,7 +6,7 @@ export async function connectDatabase(uri) {
   }
 
   await mongoose.connect(uri, {
-    dbName: uri.includes("mongodb.net") ? undefined : "next-talk-mern",
+    serverSelectionTimeoutMS: 5000,
   });
 }
 
