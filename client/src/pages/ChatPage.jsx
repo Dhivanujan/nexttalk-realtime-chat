@@ -571,51 +571,65 @@ export default function ChatPage() {
               <small>{user.name}</small>
             </div>
           </div>
-            
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button 
-                className="ghost" 
-                onClick={toggleTheme} 
-                type="button" 
-                title="Toggle Dark Mode"
-                style={{ padding: '0.4rem' }}
-              >
-                {theme === 'light' ? '🌙' : '☀️'}
-              </button>
-              <button className="ghost" onClick={logout} type="button">
-                Logout
-              </button>
-            </div>
-              const isOtherUserOnline = conversation.isGroup ? false : conversation.users.some(u => (u._id !== user.id && u.id !== user.id) && onlineUserIds.has(u._id || u.id));
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              className="ghost" 
+              onClick={toggleTheme} 
+              type="button" 
+              title="Toggle Dark Mode"
+              style={{ padding: '0.4rem' }}
+            >
+              {theme === 'light' ? '🌙' : '☀️'}
+            </button>
+            <button className="ghost" onClick={logout} type="button">
+              Logout
+            </button>
+          </div>
+        </div>
+
+        <section>
+          <h3>Conversations</h3>
+          <div className="list">
+            {conversations.map((conversation) => {
+              const isOtherUserOnline = conversation.isGroup
+                ? false
+                : conversation.users.some(
+                    (u) => (u._id !== user.id && u.id !== user.id) && onlineUserIds.has(u._id || u.id),
+                  );
+
               return (
-              <button
-                key={conversation._id}
-                className={conversation._id === activeConversation?._id ? "list-item active" : "list-item"}
-                type="button"
-                onClick={() => setActiveConversation(conversation)}
-                style={{ position: 'relative' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <strong>{getConversationTitle(conversation, user.id)}</strong>
-                  {isOtherUserOnline && <div style={{width: 8, height: 8, borderRadius: '50%', background: '#4ade80'}} title="Online" />}
-                </div>
-                <span>
-                  {conversation.lastMessage?.isDeleted ? "🚫 This message was deleted" : 
-                   conversation.lastMessage?.audio ? "🎤 Audio message" : 
-                   conversation.lastMessage?.image ? "📷 Image" : 
-                   conversation.lastMessage?.body || "No messages yet"}
-                </span>
-                {conversation.unreadCount > 0 && (
-                  <div style={{
-                    position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
-                    background: '#25D366', color: 'white', borderRadius: '50%', padding: '2px 6px',
-                    fontSize: '10px', fontWeight: 'bold', minWidth: '18px', textAlign: 'center'
-                  }}>
-                    {conversation.unreadCount}
+                <button
+                  key={conversation._id}
+                  className={conversation._id === activeConversation?._id ? "list-item active" : "list-item"}
+                  type="button"
+                  onClick={() => setActiveConversation(conversation)}
+                  style={{ position: 'relative' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <strong>{getConversationTitle(conversation, user.id)}</strong>
+                    {isOtherUserOnline && (
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80' }} title="Online" />
+                    )}
                   </div>
-                )}
-              </button>
-            )})}
+                  <span>
+                    {conversation.lastMessage?.isDeleted ? "🚫 This message was deleted" : 
+                     conversation.lastMessage?.audio ? "🎤 Audio message" : 
+                     conversation.lastMessage?.image ? "📷 Image" : 
+                     conversation.lastMessage?.body || "No messages yet"}
+                  </span>
+                  {conversation.unreadCount > 0 && (
+                    <div style={{
+                      position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
+                      background: '#25D366', color: 'white', borderRadius: '50%', padding: '2px 6px',
+                      fontSize: '10px', fontWeight: 'bold', minWidth: '18px', textAlign: 'center'
+                    }}>
+                      {conversation.unreadCount}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </section>
 
