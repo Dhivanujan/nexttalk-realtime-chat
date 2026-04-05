@@ -1,66 +1,67 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  
-  /* Modern Clean Light Theme */
-  --bg-app: #f4f6f8;
+  font-family: 'Space Grotesk', "Segoe UI", Tahoma, sans-serif;
+
+  /* Warm, user-friendly light theme */
+  --bg-app: #f6f3ef;
   --bg-panel: #ffffff;
-  --bg-header: #ffffff;
-  --bg-chat: #f9fafb;
+  --bg-header: #fffaf4;
+  --bg-chat: #fcfbf9;
   --bg-message-in: #ffffff;
-  --bg-message-own: #6366f1; /* Indigo primary */
-  --bg-input: #f3f4f6;
-  --bg-search: #f3f4f6;
-  --bg-hover: #f3f4f6;
-  --bg-active: #e0e7ff;
-  
-  --text-primary: #111827;
+  --bg-message-own: #0ea5a4;
+  --bg-input: #f4efe8;
+  --bg-search: #f2eee7;
+  --bg-hover: #f0ebe3;
+  --bg-active: #dff7f6;
+
+  --text-primary: #1f2937;
   --text-secondary: #6b7280;
   --text-own-message: #ffffff;
-  --text-in-message: #111827;
+  --text-in-message: #1f2937;
 
-  --border-color: #e5e7eb;
-  --border-list: #f3f4f6;
-  
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
-  
-  --primary-color: #6366f1;
-  --primary-hover: #4f46e5;
+  --border-color: #e5dfd7;
+  --border-list: #efe8df;
+
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 6px 12px -4px rgba(15, 23, 42, 0.12);
+  --shadow-lg: 0 18px 30px -12px rgba(15, 23, 42, 0.16);
+  --shadow-xl: 0 28px 50px -18px rgba(15, 23, 42, 0.22);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 26px;
+
+  --primary-color: #0ea5a4;
+  --primary-hover: #0b8a88;
+  --accent-color: #f59e0b;
 }
 
 [data-theme="dark"] {
-  --bg-app: #0f172a;
-  --bg-panel: #1e293b;
-  --bg-header: #1e293b;
-  --bg-chat: #0f172a;
-  --bg-message-in: #334155;
-  --bg-message-own: #6366f1;
-  --bg-input: #0f172a;
-  --bg-search: #0f172a;
-  --bg-hover: #334155;
-  --bg-active: #1e1b4b;
+  --bg-app: #0b1214;
+  --bg-panel: #10191b;
+  --bg-header: #0f1719;
+  --bg-chat: #0b1214;
+  --bg-message-in: #1b2a2c;
+  --bg-message-own: #0ea5a4;
+  --bg-input: #0f1719;
+  --bg-search: #0f1719;
+  --bg-hover: #152224;
+  --bg-active: #0f2f2e;
 
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
+  --text-primary: #f1f5f9;
+  --text-secondary: #9aa8b2;
   --text-own-message: #ffffff;
-  --text-in-message: #f8fafc;
+  --text-in-message: #f1f5f9;
 
-  --border-color: #334155;
-  --border-list: #334155;
-  
+  --border-color: #1f2a2c;
+  --border-list: #1a2426;
+
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 10px -2px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 18px 30px -12px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 28px 50px -18px rgba(0, 0, 0, 0.6);
 }
 
 * {
@@ -72,6 +73,9 @@ body {
   min-height: 100vh;
   color: var(--text-primary);
   background-color: var(--bg-app);
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(245, 158, 11, 0.08), transparent 40%),
+    radial-gradient(circle at 80% 0%, rgba(14, 165, 164, 0.12), transparent 35%);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -179,13 +183,13 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
-.auth-card button:hover, .composer button:hover {
+.auth-card button:hover, .composer > button[type='submit']:hover {
   background: var(--primary-hover);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
-.auth-card button:active, .composer button:active {
+.auth-card button:active, .composer > button[type='submit']:active {
   transform: translateY(0);
 }
 
@@ -251,6 +255,7 @@ body {
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
 }
 
 .panel-header h2 { 
@@ -349,6 +354,9 @@ body {
   grid-template-rows: 70px 1fr auto;
   background: var(--bg-chat);
   position: relative;
+  background-image:
+    linear-gradient(180deg, rgba(14, 165, 164, 0.06), transparent 40%),
+    radial-gradient(circle at 30% 20%, rgba(245, 158, 11, 0.08), transparent 55%);
 }
 
 .chat-header {
@@ -480,9 +488,7 @@ body {
 
 .composer > button[type='submit'] {
   border-radius: 999px;
-  
-  
-  padding: 0;
+  padding: 0.75rem 1.4rem;
   display: flex;
   align-items: center;
   justify-content: center;
