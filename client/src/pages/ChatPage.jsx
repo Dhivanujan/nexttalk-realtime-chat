@@ -62,6 +62,10 @@ export default function ChatPage() {
   const touchStartRef = useRef({ x: 0, y: 0 });
   const touchDeltaRef = useRef({ x: 0, y: 0 });
   const [bumpConversationId, setBumpConversationId] = useState(null);
+  const [hapticsEnabled, setHapticsEnabled] = useState(() => {
+    const stored = localStorage.getItem("chat-haptics");
+    return stored === null ? true : stored === "true";
+  });
 
   // Theme State
   const [theme, setTheme] = useState(() => {
@@ -106,10 +110,14 @@ export default function ChatPage() {
   };
 
   const triggerHaptic = (pattern = 10) => {
-    if (window.innerWidth < 900 && navigator.vibrate) {
+    if (hapticsEnabled && window.innerWidth < 900 && navigator.vibrate) {
       navigator.vibrate(pattern);
     }
   };
+
+  useEffect(() => {
+    localStorage.setItem("chat-haptics", String(hapticsEnabled));
+  }, [hapticsEnabled]);
 
   const bumpConversation = (conversationId) => {
     setBumpConversationId(conversationId);
@@ -1077,6 +1085,20 @@ export default function ChatPage() {
             <div className="modal-field">
               <label>Avatar image</label>
               <input type="file" accept="image/*" onChange={(e) => setProfileImageFile(e.target.files?.[0])} />
+            </div>
+            <div className="modal-field toggle-row">
+              <div>
+                <label className="toggle-label">Haptics</label>
+                <span className="toggle-hint">Vibrate on taps and gestures</span>
+              </div>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={hapticsEnabled}
+                  onChange={(event) => setHapticsEnabled(event.target.checked)}
+                />
+                <span className="toggle-slider" />
+              </label>
             </div>
             <div className="modal-actions">
               <button
