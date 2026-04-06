@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, useRef } from "react";
+﻿import { Fragment, useEffect, useMemo, useState, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api, uploadFile } from "../lib/api";
 import { getSocket } from "../lib/socket";
@@ -61,6 +61,7 @@ export default function ChatPage() {
   const isAtBottomRef = useRef(true);
   const touchStartRef = useRef({ x: 0, y: 0 });
   const touchDeltaRef = useRef({ x: 0, y: 0 });
+  const [bumpConversationId, setBumpConversationId] = useState(null);
 
   // Theme State
   const [theme, setTheme] = useState(() => {
@@ -102,6 +103,19 @@ export default function ChatPage() {
 
   const toggleTheme = () => {
     setTheme(prev => prev === "light" ? "dark" : "light");
+  };
+
+  const triggerHaptic = (pattern = 10) => {
+    if (window.innerWidth < 900 && navigator.vibrate) {
+      navigator.vibrate(pattern);
+    }
+  };
+
+  const bumpConversation = (conversationId) => {
+    setBumpConversationId(conversationId);
+    setTimeout(() => {
+      setBumpConversationId((current) => (current === conversationId ? null : current));
+    }, 420);
   };
 
   const socket = useMemo(() => getSocket(), []);
@@ -218,6 +232,7 @@ export default function ChatPage() {
           }
           next.splice(index, 1);
           const updatedList = [conversation, ...next];
+          bumpConversation(conversation._id);
           if (window.innerWidth < 900 && !isMobileChatOpen && message.senderId._id !== user.id) {
             setActiveConversation(conversation);
             setIsMobileChatOpen(true);
@@ -440,6 +455,7 @@ export default function ChatPage() {
     if (messageStreamRef.current) {
       messageStreamRef.current.scrollTop = messageStreamRef.current.scrollHeight;
       setShowNewMessagePill(false);
+      triggerHaptic(12);
     }
   };
 
@@ -464,6 +480,7 @@ export default function ChatPage() {
     const { x, y } = touchDeltaRef.current;
     if (x > 80 && Math.abs(x) > Math.abs(y) * 1.2) {
       setIsMobileChatOpen(false);
+      triggerHaptic(12);
     }
   };
 
@@ -526,6 +543,7 @@ export default function ChatPage() {
         if (index >= 0) {
           const conversation = { ...next[index], lastMessage: newMessage };
           next.splice(index, 1);
+          bumpConversation(conversation._id);
           return [conversation, ...next];
         }
         return current;
@@ -539,7 +557,9 @@ export default function ChatPage() {
   }
 
   async function handleUpdateProfile(e) {
-    e.preventDefault();
+    if (e) {
+      e.preventDefault();
+    }
     try {
       let imageUrl = user.image;
       if (profileImageFile) {
@@ -628,8 +648,22 @@ export default function ChatPage() {
     setActiveConversation(conversation);
     if (window.innerWidth < 900) {
       setIsMobileChatOpen(true);
+      triggerHaptic(12);
     }
   };
+
+  const unreadIndex = useMemo(() => {
+    if (!activeConversation || !messages.length) return -1;
+
+    return messages.findIndex((message) => {
+      const senderId = message.senderId?._id || message.senderId?.id;
+      if (!senderId || senderId === user.id || senderId === user._id) return false;
+      if (message.isDeleted) return false;
+
+      const seenIds = message.seenIds || [];
+      return !seenIds.some((id) => id?.toString?.() === user.id || id === user.id || id === user._id);
+    });
+  }, [activeConversation, messages, user.id, user._id]);
 
   if (!user) {
     return null;
@@ -689,7 +723,7 @@ export default function ChatPage() {
               return (
                 <button
                   key={conversation._id}
-                  className={conversation._id === activeConversation?._id ? "list-item active" : "list-item"}
+                  className={`list-item${conversation._id === activeConversation?._id ? " active" : ""}${bumpConversationId === conversation._id ? " bump" : ""}`}
                   type="button"
                   onClick={() => handleOpenConversation(conversation)}
                 >
@@ -826,7 +860,10 @@ export default function ChatPage() {
           <button
             className="ghost back-button"
             type="button"
-            onClick={() => setIsMobileChatOpen(false)}
+            onClick={() => {
+              setIsMobileChatOpen(false);
+              triggerHaptic(12);
+            }}
             aria-label="Back to conversations"
           >
             ←
@@ -840,63 +877,73 @@ export default function ChatPage() {
           <div ref={observerTarget} className="observer-target" />
           {loadingMore && <div className="message-loading">Loading older messages...</div>}
           
-          {messages.map((message) => (
-            <div
-              key={message._id}
-              className={
-                (message.senderId.id || message.senderId._id) === user.id ? "message own" : "message"
-              }
-            >
-              <div className="message-meta message-meta-row">
-                <div>{message.senderId.name}</div>
-                {(message.senderId.id || message.senderId._id) === user.id && !message.isDeleted && (
-                  <button 
-                    onClick={() => {
-                       if (window.confirm("Delete this message for everyone?")) {
-                          api.delete(`/messages/${message._id}`).catch(err => console.error(err));
-                       }
-                    }}
-                    className="message-delete"
-                    title="Delete message"
-                  >
-                    🗑
-                  </button>
-                )}
-              </div>
-              {message.isDeleted ? (
-                <div className="message-deleted">
-                  🚫 {message.body}
+          {messages.map((message, index) => (
+            <Fragment key={message._id}>
+              {index === unreadIndex && (
+                <div className="unread-divider">
+                  <span>Unread messages</span>
                 </div>
-              ) : (
-                <>
-                  {message.image && (
-                    <div className="message-media">
-                      <img
-                        src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`}
-                        alt="attachment"
-                        onClick={() => setZoomedImage(`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`)}
-                        className="message-image"
-                      />
-                    </div>
-                  )}
-                  {message.body && <div className="message-body">{message.body}</div>}
-                  {message.audio && (
-                    <div className="message-audio">
-                      <audio
-                        controls
-                        src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.audio}`}
-                      />
-                    </div>
-                  )}
-                </>
               )}
-              <div className="message-footer">
-                <small className="message-time-text">
-                  {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </small>
-                {renderMessageStatus(message)}
+              <div
+                className={
+                  (message.senderId.id || message.senderId._id) === user.id ? "message own" : "message"
+                }
+              >
+                <div className="message-meta message-meta-row">
+                  <div>{message.senderId.name}</div>
+                  {(message.senderId.id || message.senderId._id) === user.id && !message.isDeleted && (
+                    <button 
+                      onClick={() => {
+                        triggerHaptic(10);
+                        if (window.confirm("Delete this message for everyone?")) {
+                            api.delete(`/messages/${message._id}`).catch(err => console.error(err));
+                        }
+                      }}
+                      className="message-delete"
+                      title="Delete message"
+                    >
+                      🗑
+                    </button>
+                  )}
+                </div>
+                {message.isDeleted ? (
+                  <div className="message-deleted">
+                    🚫 {message.body}
+                  </div>
+                ) : (
+                  <>
+                    {message.image && (
+                      <div className="message-media">
+                        <img
+                          src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`}
+                          alt="attachment"
+                          onClick={() => {
+                            triggerHaptic(8);
+                            setZoomedImage(`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`);
+                          }}
+                          className="message-image"
+                        />
+                      </div>
+                    )}
+                    {message.body && <div className="message-body">{message.body}</div>}
+                    {message.audio && (
+                      <div className="message-audio">
+                        <audio
+                          controls
+                          src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.audio}`}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="message-footer">
+                  <small className="message-time-text">
+                    {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </small>
+                  {renderMessageStatus(message)}
+                </div>
               </div>
-            </div>
+            </Fragment>
           ))}
           {activeConversation && Array.from(typingUsers).filter(id => activeConversation.users.some(u => (u._id || u.id) === id)).length > 0 && (
             <div className="message typing-indicator">
@@ -952,6 +999,7 @@ export default function ChatPage() {
             <label 
               htmlFor="file-upload" 
               className={`composer-icon ${(!activeConversation || sending) ? "disabled" : ""}`}
+              onClick={() => triggerHaptic(8)}
               title="Attach image"
             >
               📷
@@ -983,7 +1031,11 @@ export default function ChatPage() {
               disabled={!activeConversation || sending || isRecording}
               className={isRecording ? "composer-input disabled" : "composer-input"}
             />
-            <button type="submit" disabled={!activeConversation || sending || isRecording || (!draft.trim() && !imageFile && !audioBlob)}>
+            <button
+              type="submit"
+              onClick={() => triggerHaptic(10)}
+              disabled={!activeConversation || sending || isRecording || (!draft.trim() && !imageFile && !audioBlob)}
+            >
               {sending ? '...' : 'Send'}
             </button>
           </div>
@@ -992,7 +1044,10 @@ export default function ChatPage() {
 
       {zoomedImage && (
         <div className="overlay overlay-image" onClick={() => setZoomedImage(null)}>
-          <button className="overlay-close" onClick={() => setZoomedImage(null)}>
+          <button className="overlay-close" onClick={() => {
+            triggerHaptic(10);
+            setZoomedImage(null);
+          }}>
             &times;
           </button>
           <img src={zoomedImage} alt="zoomed" className="overlay-img" />
@@ -1024,10 +1079,24 @@ export default function ChatPage() {
               <input type="file" accept="image/*" onChange={(e) => setProfileImageFile(e.target.files?.[0])} />
             </div>
             <div className="modal-actions">
-              <button type="button" className="modal-button" onClick={() => setIsEditingProfile(false)}>
+              <button
+                type="button"
+                className="modal-button"
+                onClick={() => {
+                  triggerHaptic(10);
+                  setIsEditingProfile(false);
+                }}
+              >
                 Cancel
               </button>
-              <button type="button" className="modal-button primary" onClick={handleUpdateProfile}>
+              <button
+                type="button"
+                className="modal-button primary"
+                onClick={() => {
+                  triggerHaptic(12);
+                  handleUpdateProfile();
+                }}
+              >
                 Save Changes
               </button>
             </div>
