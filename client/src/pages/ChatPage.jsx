@@ -56,6 +56,7 @@ export default function ChatPage() {
   const [profileName, setProfileName] = useState(user?.name || "");
   const [profileBio, setProfileBio] = useState(user?.bio || "");
   const [profileImageFile, setProfileImageFile] = useState(null);
+  const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
 
   // Theme State
   const [theme, setTheme] = useState(() => {
@@ -66,6 +67,17 @@ export default function ChatPage() {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("chat-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 900) {
+        setIsMobileChatOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const toggleTheme = () => {
     setTheme(prev => prev === "light" ? "dark" : "light");
@@ -495,6 +507,9 @@ export default function ChatPage() {
     });
 
     setActiveConversation(response.data);
+    if (window.innerWidth < 900) {
+      setIsMobileChatOpen(true);
+    }
   }
 
   async function handleAddContactByEmail(e) {
@@ -551,7 +566,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="chat-shell">
+    <div className={`chat-shell ${isMobileChatOpen ? "chat-active" : ""}`}>
       <aside className="left-panel">
         <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div 
@@ -727,6 +742,14 @@ export default function ChatPage() {
 
       <main className="chat-panel">
         <header className="chat-header">
+          <button
+            className="ghost back-button"
+            type="button"
+            onClick={() => setIsMobileChatOpen(false)}
+            aria-label="Back to conversations"
+          >
+            ←
+          </button>
           <h3>
             {activeConversation ? getConversationTitle(activeConversation, user.id) : "Select a conversation"}
           </h3>
