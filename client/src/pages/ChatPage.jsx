@@ -191,7 +191,12 @@ export default function ChatPage() {
             conversation.unreadCount = (conversation.unreadCount || 0) + 1;
           }
           next.splice(index, 1);
-          return [conversation, ...next];
+          const updatedList = [conversation, ...next];
+          if (window.innerWidth < 900 && !isMobileChatOpen && message.senderId._id !== user.id) {
+            setActiveConversation(conversation);
+            setIsMobileChatOpen(true);
+          }
+          return updatedList;
         }
 
         return current;
@@ -266,7 +271,7 @@ export default function ChatPage() {
       socket.off("message-status-update");
       socket.off("message-deleted");
     };
-  }, [socket, user, activeConversation?._id]);
+  }, [socket, user, activeConversation?._id, isMobileChatOpen]);
 
   useEffect(() => {
     if (!activeConversation) {
@@ -552,13 +557,19 @@ export default function ChatPage() {
     // If the conversation's other user is in seenIds, it's read.
     const isRead = message.status === 'read' || (message.seenIds && message.seenIds.some(id => id !== user.id && id !== user._id));
     if (isRead) {
-      return <span style={{ color: '#4ade80', fontSize: '12px', marginLeft: '5px' }}>✓✓</span>;
+      return <span className="message-status read">✓✓</span>;
     }
     if (message.status === 'delivered') {
-      return <span style={{ color: '#9ca3af', fontSize: '12px', marginLeft: '5px' }}>✓✓</span>;
+      return <span className="message-status delivered">✓✓</span>;
     }
-    // Default sent
-    return <span style={{ color: '#9ca3af', fontSize: '12px', marginLeft: '5px' }}>✓</span>;
+    return <span className="message-status sent">✓</span>;
+  };
+
+  const handleOpenConversation = (conversation) => {
+    setActiveConversation(conversation);
+    if (window.innerWidth < 900) {
+      setIsMobileChatOpen(true);
+    }
   };
 
   if (!user) {
@@ -568,16 +579,20 @@ export default function ChatPage() {
   return (
     <div className={`chat-shell ${isMobileChatOpen ? "chat-active" : ""}`}>
       <aside className="left-panel">
-        <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div 
-            style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+        <div className="panel-header">
+          <div
+            className="panel-header-content"
             onClick={() => setIsEditingProfile(true)}
             title="Edit Profile"
           >
             {user.image ? (
-              <img src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${user.image}`} alt="avatar" style={{width: 40, height: 40, borderRadius: '50%', objectFit: 'cover'}} />
+              <img
+                src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${user.image}`}
+                alt="avatar"
+                className="avatar"
+              />
             ) : (
-              <div style={{width: 40, height: 40, borderRadius: '50%', backgroundColor: '#007bff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'}}>
+              <div className="avatar avatar-fallback primary">
                 {user.name.charAt(0).toUpperCase()}
               </div>
             )}
@@ -587,13 +602,12 @@ export default function ChatPage() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button 
-              className="ghost" 
-              onClick={toggleTheme} 
-              type="button" 
+          <div className="panel-header-actions">
+            <button
+              className="ghost theme-toggle"
+              onClick={toggleTheme}
+              type="button"
               title="Toggle Dark Mode"
-              style={{ padding: '0.4rem' }}
             >
               {theme === 'light' ? '🌙' : '☀️'}
             </button>
@@ -618,13 +632,12 @@ export default function ChatPage() {
                   key={conversation._id}
                   className={conversation._id === activeConversation?._id ? "list-item active" : "list-item"}
                   type="button"
-                  onClick={() => setActiveConversation(conversation)}
-                  style={{ position: 'relative' }}
+                  onClick={() => handleOpenConversation(conversation)}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <div className="list-item-title">
                     <strong>{getConversationTitle(conversation, user.id)}</strong>
                     {isOtherUserOnline && (
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80' }} title="Online" />
+                      <div className="presence-dot" title="Online" />
                     )}
                   </div>
                   <span>
@@ -634,11 +647,7 @@ export default function ChatPage() {
                      conversation.lastMessage?.body || "No messages yet"}
                   </span>
                   {conversation.unreadCount > 0 && (
-                    <div style={{
-                      position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
-                      background: '#25D366', color: 'white', borderRadius: '50%', padding: '2px 6px',
-                      fontSize: '10px', fontWeight: 'bold', minWidth: '18px', textAlign: 'center'
-                    }}>
+                    <div className="unread-count">
                       {conversation.unreadCount}
                     </div>
                   )}
@@ -649,12 +658,12 @@ export default function ChatPage() {
         </section>
 
         <section>
-          <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 className="section-header">
             Connections
             <button
               className="ghost"
               onClick={() => setShowDirectory(!showDirectory)}
-              style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem' }}
+              type="button"
             >
               {showDirectory ? "Hide Global Directory" : "Global Directory"}
             </button>
@@ -667,9 +676,9 @@ export default function ChatPage() {
                 placeholder="Search registered users..."
                 value={newContactEmail}
                 onChange={(event) => setNewContactEmail(event.target.value)}
-                style={{ marginBottom: '10px' }}
+                type="search"
               />
-              <div className="list compact" style={{ maxHeight: "250px", overflowY: "auto" }}>
+              <div className="list compact">
                 {filteredUsers.map((targetUser) => (
                   <button
                     className="list-item"
@@ -680,23 +689,27 @@ export default function ChatPage() {
                       setShowDirectory(false);
                     }}
                   >
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div className="list-item-content">
                       {targetUser.image ? (
-                        <img src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${targetUser.image}`} alt="avatar" style={{width: 30, height: 30, borderRadius: '50%', objectFit: 'cover'}} />
+                        <img
+                          src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${targetUser.image}`}
+                          alt="avatar"
+                          className="avatar sm"
+                        />
                       ) : (
-                        <div style={{width: 30, height: 30, borderRadius: '50%', backgroundColor: '#00a884', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px'}}>
+                        <div className="avatar sm avatar-fallback accent">
                           {targetUser.name.charAt(0).toUpperCase()}
                         </div>
                       )}
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div className="list-item-meta">
                         <strong>{targetUser.name}</strong>
-                        <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>{targetUser.email}</span>
+                        <span className="list-item-subtitle">{targetUser.email}</span>
                       </div>
                     </div>
                   </button>
                 ))}
                 {filteredUsers.length === 0 && (
-                  <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  <div className="list-empty">
                     No registered users found.
                   </div>
                 )}
@@ -709,9 +722,9 @@ export default function ChatPage() {
                 placeholder="Search existing contacts..."
                 value={contactSearch}
                 onChange={(event) => setContactSearch(event.target.value)}
-                style={{ marginBottom: '10px' }}
+                type="search"
               />
-              <div className="list compact" style={{ maxHeight: "250px", overflowY: "auto" }}>
+              <div className="list compact">
                 {filteredContacts.map((targetUser) => (
                   <button
                     className="list-item"
@@ -719,17 +732,21 @@ export default function ChatPage() {
                     type="button"
                     onClick={() => startConversation(targetUser)}
                   >
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div className="list-item-content">
                       {targetUser.image ? (
-                        <img src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${targetUser.image}`} alt="avatar" style={{width: 30, height: 30, borderRadius: '50%', objectFit: 'cover'}} />
+                        <img
+                          src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${targetUser.image}`}
+                          alt="avatar"
+                          className="avatar sm"
+                        />
                       ) : (
-                        <div style={{width: 30, height: 30, borderRadius: '50%', backgroundColor: '#007bff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px'}}>
+                        <div className="avatar sm avatar-fallback primary">
                           {targetUser.name.charAt(0).toUpperCase()}
                         </div>
                       )}
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div className="list-item-meta">
                         <strong>{targetUser.name}</strong>
-                        <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>{targetUser.email}</span>
+                        <span className="list-item-subtitle">{targetUser.email}</span>
                       </div>
                     </div>
                   </button>
@@ -756,8 +773,8 @@ export default function ChatPage() {
         </header>
 
         <div className="message-stream" ref={messageStreamRef}>
-          <div ref={observerTarget} style={{ height: "1px", visibility: "hidden" }} />
-          {loadingMore && <div style={{ textAlign: "center", padding: "10px", fontSize: "12px", color: "#888" }}>Loading older messages...</div>}
+          <div ref={observerTarget} className="observer-target" />
+          {loadingMore && <div className="message-loading">Loading older messages...</div>}
           
           {messages.map((message) => (
             <div
@@ -766,10 +783,8 @@ export default function ChatPage() {
                 (message.senderId.id || message.senderId._id) === user.id ? "message own" : "message"
               }
             >
-              <div className="message-meta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  {message.senderId.name} 
-                </div>
+              <div className="message-meta message-meta-row">
+                <div>{message.senderId.name}</div>
                 {(message.senderId.id || message.senderId._id) === user.id && !message.isDeleted && (
                   <button 
                     onClick={() => {
@@ -777,7 +792,7 @@ export default function ChatPage() {
                           api.delete(`/messages/${message._id}`).catch(err => console.error(err));
                        }
                     }}
-                    style={{ background: 'transparent', border: 'none', color: '#ff4444', cursor: 'pointer', fontSize: '12px' }}
+                    className="message-delete"
                     title="Delete message"
                   >
                     🗑
@@ -785,33 +800,34 @@ export default function ChatPage() {
                 )}
               </div>
               {message.isDeleted ? (
-                <div style={{ fontStyle: "italic", color: "#888", display: "flex", alignItems: "center", gap: "5px" }}>
+                <div className="message-deleted">
                   🚫 {message.body}
                 </div>
               ) : (
                 <>
                   {message.image && (
-                    <div style={{ marginBottom: "5px" }}>
+                    <div className="message-media">
                       <img
                         src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`}
                         alt="attachment"
                         onClick={() => setZoomedImage(`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`)}
-                        style={{ maxWidth: "250px", borderRadius: "8px", display: "block", cursor: "pointer", transition: "opacity 0.2s" }}
-                        onMouseOver={e => e.currentTarget.style.opacity = 0.8}
-                        onMouseOut={e => e.currentTarget.style.opacity = 1}
+                        className="message-image"
                       />
                     </div>
                   )}
-                  {message.body && <div>{message.body}</div>}
+                  {message.body && <div className="message-body">{message.body}</div>}
                   {message.audio && (
-                    <div style={{ marginTop: "5px" }}>
-                      <audio controls src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.audio}`} style={{ width: "250px", height: "40px" }} />
+                    <div className="message-audio">
+                      <audio
+                        controls
+                        src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.audio}`}
+                      />
                     </div>
                   )}
                 </>
               )}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2, alignItems: 'center', gap: '5px' }}>
-                <small style={{ fontSize: '10px', color: '#9ca3af' }}>
+              <div className="message-footer">
+                <small className="message-time-text">
                   {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </small>
                 {renderMessageStatus(message)}
@@ -819,53 +835,53 @@ export default function ChatPage() {
             </div>
           ))}
           {activeConversation && Array.from(typingUsers).filter(id => activeConversation.users.some(u => (u._id || u.id) === id)).length > 0 && (
-            <div className="message" style={{ background: "transparent", fontStyle: "italic", color: "#888" }}>
+            <div className="message typing-indicator">
               Someone is typing...
             </div>
           )}
         </div>
 
-        <form className="composer" onSubmit={sendMessage} style={{ flexDirection: "column", gap: "10px" }}>
+        <form className="composer composer-stack" onSubmit={sendMessage}>
           {imageFile && (
-            <div className="image-preview" style={{ padding: "8px", background: "#f0f0f0", borderRadius: "4px", alignSelf: "flex-start", display: "flex", gap: "10px", alignItems: "center" }}>
-              <img src={URL.createObjectURL(imageFile)} alt="preview" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} />
-              <span style={{ fontSize: "14px", color: "#333", maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div className="composer-preview">
+              <img src={URL.createObjectURL(imageFile)} alt="preview" />
+              <span>
                 {imageFile.name}
               </span>
               <button 
                 type="button" 
                 onClick={() => setImageFile(null)}
                 disabled={sending}
-                style={{ padding: "2px 6px", background: "#ff4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", opacity: sending ? 0.5 : 1 }}
+                className="composer-preview-remove"
               >
                 X
               </button>
             </div>
           )}
           {audioUrl && (
-            <div className="audio-preview" style={{ padding: "8px", background: "#f0f0f0", borderRadius: "4px", alignSelf: "flex-start", display: "flex", gap: "10px", alignItems: "center" }}>
-              <audio controls src={audioUrl} style={{ height: "30px" }} />
+            <div className="composer-preview">
+              <audio controls src={audioUrl} />
               <button 
                 type="button" 
                 onClick={cancelRecording}
                 disabled={sending}
-                style={{ padding: "2px 6px", background: "#ff4444", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", opacity: sending ? 0.5 : 1 }}
+                className="composer-preview-remove"
               >
                 X
               </button>
             </div>
           )}
-          <div style={{ display: "flex", width: "100%", gap: "10px", alignItems: "center" }}>
+          <div className="composer-row">
             <input
               type="file"
               accept="image/*"
               id="file-upload"
-              style={{ display: "none" }}
+              className="composer-file-input"
               onChange={(e) => setImageFile(e.target.files?.[0] || null)}
             />
             <label 
               htmlFor="file-upload" 
-              style={{ cursor: "pointer", fontSize: "24px", opacity: (!activeConversation || sending) ? 0.5 : 1, pointerEvents: (!activeConversation || sending) ? "none" : "auto" }}
+              className={`composer-icon ${(!activeConversation || sending) ? "disabled" : ""}`}
               title="Attach image"
             >
               📷
@@ -875,7 +891,7 @@ export default function ChatPage() {
                 type="button"
                 onClick={startRecording}
                 disabled={!activeConversation || sending}
-                style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "24px", padding: 0, opacity: (!activeConversation || sending) ? 0.5 : 1 }}
+                className={`composer-icon ${(!activeConversation || sending) ? "disabled" : ""}`}
                 title="Record audio"
               >
                 🎤
@@ -884,7 +900,7 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={stopRecording}
-                style={{ background: "#ff4444", color: "white", border: "none", borderRadius: "50%", cursor: "pointer", width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                className="composer-icon recording"
                 title="Stop recording"
               >
                 ⏹
@@ -895,7 +911,7 @@ export default function ChatPage() {
               onChange={handleTyping}
               placeholder="Write a message"
               disabled={!activeConversation || sending || isRecording}
-              style={{ flex: 1, padding: '10px', opacity: isRecording ? 0.5 : 1 }}
+              className={isRecording ? "composer-input disabled" : "composer-input"}
             />
             <button type="submit" disabled={!activeConversation || sending || isRecording || (!draft.trim() && !imageFile && !audioBlob)}>
               {sending ? '...' : 'Send'}
@@ -905,39 +921,45 @@ export default function ChatPage() {
       </main>
 
       {zoomedImage && (
-        <div 
-          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}
-          onClick={() => setZoomedImage(null)}
-        >
-          <button 
-            style={{ position: 'absolute', top: 20, right: 20, background: 'none', border: 'none', color: 'white', fontSize: 30, cursor: 'pointer' }}
-            onClick={() => setZoomedImage(null)}
-          >
+        <div className="overlay overlay-image" onClick={() => setZoomedImage(null)}>
+          <button className="overlay-close" onClick={() => setZoomedImage(null)}>
             &times;
           </button>
-          <img src={zoomedImage} alt="zoomed" style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain', borderRadius: 8 }} />
+          <img src={zoomedImage} alt="zoomed" className="overlay-img" />
         </div>
       )}
 
       {isEditingProfile && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <div style={{ background: 'white', padding: '20px', borderRadius: '8px', minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <h3>Edit Profile</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+        <div className="overlay" onClick={() => setIsEditingProfile(false)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <h3 className="modal-title">Edit Profile</h3>
+            <div className="modal-field">
               <label>Name</label>
-              <input value={profileName} onChange={(e) => setProfileName(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }} />
+              <input
+                className="modal-input"
+                value={profileName}
+                onChange={(e) => setProfileName(e.target.value)}
+              />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <div className="modal-field">
               <label>Bio</label>
-              <textarea value={profileBio} onChange={(e) => setProfileBio(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd', minHeight: '60px' }} />
+              <textarea
+                className="modal-textarea"
+                value={profileBio}
+                onChange={(e) => setProfileBio(e.target.value)}
+              />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <div className="modal-field">
               <label>Avatar image</label>
               <input type="file" accept="image/*" onChange={(e) => setProfileImageFile(e.target.files?.[0])} />
             </div>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
-              <button type="button" onClick={() => setIsEditingProfile(false)} style={{ background: '#eee', color: '#333', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
-              <button type="button" onClick={handleUpdateProfile} style={{ background: '#007bff', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Save Changes</button>
+            <div className="modal-actions">
+              <button type="button" className="modal-button" onClick={() => setIsEditingProfile(false)}>
+                Cancel
+              </button>
+              <button type="button" className="modal-button primary" onClick={handleUpdateProfile}>
+                Save Changes
+              </button>
             </div>
           </div>
         </div>
