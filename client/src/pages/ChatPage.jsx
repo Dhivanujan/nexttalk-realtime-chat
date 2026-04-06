@@ -57,6 +57,10 @@ export default function ChatPage() {
   const [profileBio, setProfileBio] = useState(user?.bio || "");
   const [profileImageFile, setProfileImageFile] = useState(null);
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
+  const [showNewMessagePill, setShowNewMessagePill] = useState(false);
+  const isAtBottomRef = useRef(true);
+  const touchStartRef = useRef({ x: 0, y: 0 });
+  const touchDeltaRef = useRef({ x: 0, y: 0 });
 
   // Theme State
   const [theme, setTheme] = useState(() => {
@@ -78,6 +82,23 @@ export default function ChatPage() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    const messageStream = messageStreamRef.current;
+    if (!messageStream) return;
+
+    const handleScroll = () => {
+      const nearBottom = messageStream.scrollHeight - messageStream.scrollTop - messageStream.clientHeight < 120;
+      isAtBottomRef.current = nearBottom;
+      if (nearBottom) {
+        setShowNewMessagePill(false);
+      }
+    };
+
+    messageStream.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => messageStream.removeEventListener("scroll", handleScroll);
+  }, [activeConversation?._id]);
 
   const toggleTheme = () => {
     setTheme(prev => prev === "light" ? "dark" : "light");
@@ -159,6 +180,7 @@ export default function ChatPage() {
     socket.emit("register-user", user.id);
 
     socket.on("receive-message", (message) => {
+      const shouldAutoScroll = isAtBottomRef.current;
       if (message.conversationId === activeConversation?._id) {
         setMessages((current) => {
           // Prevent duplicates if already there
@@ -166,7 +188,11 @@ export default function ChatPage() {
           
           setTimeout(() => {
             if (messageStreamRef.current) {
-              messageStreamRef.current.scrollTop = messageStreamRef.current.scrollHeight;
+              if (shouldAutoScroll) {
+                messageStreamRef.current.scrollTop = messageStreamRef.current.scrollHeight;
+              } else {
+                setShowNewMessagePill(true);
+              }
             }
           }, 50);
 
@@ -278,6 +304,7 @@ export default function ChatPage() {
       setMessages([]);
       setCursor(null);
       setHasMore(false);
+      setShowNewMessagePill(false);
       return;
     }
 
@@ -409,6 +436,37 @@ export default function ChatPage() {
     setAudioUrl(null);
   };
 
+  const scrollToBottom = () => {
+    if (messageStreamRef.current) {
+      messageStreamRef.current.scrollTop = messageStreamRef.current.scrollHeight;
+      setShowNewMessagePill(false);
+    }
+  };
+
+  const handleTouchStart = (event) => {
+    if (window.innerWidth >= 900) return;
+    const touch = event.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    touchDeltaRef.current = { x: 0, y: 0 };
+  };
+
+  const handleTouchMove = (event) => {
+    if (window.innerWidth >= 900) return;
+    const touch = event.touches[0];
+    touchDeltaRef.current = {
+      x: touch.clientX - touchStartRef.current.x,
+      y: touch.clientY - touchStartRef.current.y,
+    };
+  };
+
+  const handleTouchEnd = () => {
+    if (window.innerWidth >= 900) return;
+    const { x, y } = touchDeltaRef.current;
+    if (x > 80 && Math.abs(x) > Math.abs(y) * 1.2) {
+      setIsMobileChatOpen(false);
+    }
+  };
+
   async function sendMessage(event) {
     if (event) event.preventDefault();
     if ((!draft.trim() && !imageFile && !audioBlob) || !activeConversation) {
@@ -426,6 +484,7 @@ export default function ChatPage() {
     setImageFile(null);
     setAudioBlob(null);
     setAudioUrl(null);
+    setShowNewMessagePill(false);
 
     try {
       let imageUrl = undefined;
@@ -757,7 +816,12 @@ export default function ChatPage() {
         </section>
       </aside>
 
-      <main className="chat-panel">
+      <main
+        className="chat-panel"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <header className="chat-header">
           <button
             className="ghost back-button"
@@ -840,6 +904,12 @@ export default function ChatPage() {
             </div>
           )}
         </div>
+
+        {showNewMessagePill && (
+          <button type="button" className="new-message-pill" onClick={scrollToBottom}>
+            New messages ↓
+          </button>
+        )}
 
         <form className="composer composer-stack" onSubmit={sendMessage}>
           {imageFile && (

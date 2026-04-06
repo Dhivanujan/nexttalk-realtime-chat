@@ -374,7 +374,19 @@ body {
   gap: 0.25rem;
   transition: all var(--duration-fast) var(--ease-out);
   position: relative;
+  animation: list-rise 260ms var(--ease-out) both;
 }
+
+.list-item:nth-child(1) { animation-delay: 20ms; }
+.list-item:nth-child(2) { animation-delay: 40ms; }
+.list-item:nth-child(3) { animation-delay: 60ms; }
+.list-item:nth-child(4) { animation-delay: 80ms; }
+.list-item:nth-child(5) { animation-delay: 100ms; }
+.list-item:nth-child(6) { animation-delay: 120ms; }
+.list-item:nth-child(7) { animation-delay: 140ms; }
+.list-item:nth-child(8) { animation-delay: 160ms; }
+.list-item:nth-child(9) { animation-delay: 180ms; }
+.list-item:nth-child(10) { animation-delay: 200ms; }
 
 .list-item-title {
   display: flex;
@@ -571,7 +583,19 @@ body {
   transition: transform var(--duration-fast) var(--ease-out);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
+  animation: bubble-in 220ms var(--ease-out) both;
 }
+
+.message-stream > .message:nth-child(1) { animation-delay: 20ms; }
+.message-stream > .message:nth-child(2) { animation-delay: 40ms; }
+.message-stream > .message:nth-child(3) { animation-delay: 60ms; }
+.message-stream > .message:nth-child(4) { animation-delay: 80ms; }
+.message-stream > .message:nth-child(5) { animation-delay: 100ms; }
+.message-stream > .message:nth-child(6) { animation-delay: 120ms; }
+.message-stream > .message:nth-child(7) { animation-delay: 140ms; }
+.message-stream > .message:nth-child(8) { animation-delay: 160ms; }
+.message-stream > .message:nth-child(9) { animation-delay: 180ms; }
+.message-stream > .message:nth-child(10) { animation-delay: 200ms; }
 
 .message:hover {
   transform: translateY(-1px);
@@ -813,6 +837,26 @@ body {
   color: var(--text-secondary);
 }
 
+.new-message-pill {
+  position: absolute;
+  right: 24px;
+  bottom: 96px;
+  background: rgba(47, 128, 237, 0.95);
+  color: white;
+  border: none;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  animation: pill-pop 180ms var(--ease-out) both;
+}
+
+.new-message-pill:hover {
+  transform: translateY(-1px);
+}
+
 .overlay {
   position: fixed;
   inset: 0;
@@ -958,6 +1002,10 @@ body {
     opacity: 1;
   }
   .back-button { display: inline-flex; }
+  .new-message-pill {
+    right: 16px;
+    bottom: 88px;
+  }
 }
 .composer .image-preview button,
 .composer .audio-preview button {
@@ -969,6 +1017,21 @@ body {
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes list-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bubble-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes pill-pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes rise-in {
