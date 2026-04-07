@@ -72,6 +72,10 @@ export default function ChatPage() {
   const [channelMembers, setChannelMembers] = useState([]);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [reactionPickerId, setReactionPickerId] = useState(null);
+  const [showChannelSettings, setShowChannelSettings] = useState(false);
+  const [channelSettingsName, setChannelSettingsName] = useState("");
+  const [channelSettingsMembers, setChannelSettingsMembers] = useState([]);
+  const [channelSettingsAdmins, setChannelSettingsAdmins] = useState([]);
   const [hapticsEnabled, setHapticsEnabled] = useState(() => {
     const stored = localStorage.getItem("chat-haptics");
     return stored === null ? true : stored === "true";
@@ -163,8 +167,6 @@ export default function ChatPage() {
       setBumpConversationId((current) => (current === conversationId ? null : current));
     }, 420);
   };
-
-      appendMessage(response.data);
       setAllUsers(allUsersResponse.data);
 
       if (!socket.connected) socket.connect();
@@ -399,6 +401,33 @@ export default function ChatPage() {
   }, [activeConversation, socket]);
 
   useEffect(() => {
+    if (!isChannel || !activeConversation) {
+      setChannelSettingsName("");
+      setChannelSettingsMembers([]);
+      setChannelSettingsAdmins([]);
+      return;
+    }
+
+    api.get(`/conversations/${activeConversation._id}/channel-settings`)
+      .then((response) => {
+        setChannelSettingsName(response.data.name || "");
+        const memberIds = response.data.users?.map((member) => member._id?.toString?.() || member._id) || [];
+        setChannelSettingsMembers(memberIds);
+        const adminIds = response.data.channelAdminIds?.map((id) => id?.toString?.() || id) || [];
+        setChannelSettingsAdmins(adminIds);
+      })
+      .catch(() => {
+        setChannelSettingsName(activeConversation.name || "");
+        setChannelSettingsMembers(
+          activeConversation.users?.map((member) => member._id?.toString?.() || member.id || member._id) || [],
+        );
+        setChannelSettingsAdmins(
+          activeConversation.channelAdminIds?.map((id) => id?._id || id) || [],
+        );
+      });
+  }, [activeConversation, isChannel]);
+
+  useEffect(() => {
     if (!activeConversation) {
       return;
     }
@@ -580,6 +609,29 @@ export default function ChatPage() {
       setShowChannelModal(false);
     } catch (error) {
       console.error("Failed to create channel", error);
+    }
+  };
+
+  const handleSaveChannelSettings = async (event) => {
+    event.preventDefault();
+    if (!activeConversation) return;
+
+    try {
+      const response = await api.patch(`/conversations/${activeConversation._id}/channel-settings`, {
+        name: channelSettingsName.trim(),
+        memberIds: channelSettingsMembers,
+        adminIds: channelSettingsAdmins,
+      });
+
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation._id === response.data._id ? response.data : conversation,
+        ),
+      );
+      setActiveConversation(response.data);
+      setShowChannelSettings(false);
+    } catch (error) {
+      console.error("Failed to update channel settings", error);
     }
   };
 
@@ -825,6 +877,20 @@ export default function ChatPage() {
     [contacts, allUsers],
   );
 
+  const isChannel = activeConversation?.type === "channel";
+  const isChannelOwner = useMemo(() => {
+    const ownerId = activeConversation?.channelOwnerId?._id || activeConversation?.channelOwnerId;
+    return ownerId?.toString?.() === user.id || ownerId === user.id;
+  }, [activeConversation?.channelOwnerId, user.id]);
+
+  const isChannelAdmin = useMemo(() => {
+    const adminIds = activeConversation?.channelAdminIds || [];
+    return adminIds.some((id) => {
+      const normalized = id?._id || id;
+      return normalized?.toString?.() === user.id || normalized === user.id;
+    });
+  }, [activeConversation?.channelAdminIds, user.id]);
+
   if (!user) {
     return null;
   }
@@ -1040,6 +1106,16 @@ export default function ChatPage() {
           <h3>
             {activeConversation ? getConversationTitle(activeConversation, user.id) : "Select a conversation"}
           </h3>
+          {isChannel && (isChannelOwner || isChannelAdmin) && (
+            <button
+              type="button"
+              className="ghost channel-settings-button"
+              onClick={() => setShowChannelSettings(true)}
+              title="Channel settings"
+            >
+              ⚙️
+            </button>
+          )}
         </header>
 
         {pinnedMessages.length > 0 && (
@@ -1458,6 +1534,79 @@ export default function ChatPage() {
               </button>
               <button type="submit" className="modal-button primary">
                 Create channel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showChannelSettings && isChannel && (
+        <div className="overlay" onClick={() => setShowChannelSettings(false)}>
+          <form className="modal" onClick={(event) => event.stopPropagation()} onSubmit={handleSaveChannelSettings}>
+            <h3 className="modal-title">Channel Settings</h3>
+            <div className="modal-field">
+              <label>Channel name</label>
+              <input
+                className="modal-input"
+                value={channelSettingsName}
+                onChange={(event) => setChannelSettingsName(event.target.value)}
+                required
+              />
+            </div>
+            <div className="modal-field">
+              <label>Members</label>
+              <div className="member-list">
+                {allUsers.map((member) => {
+                  const id = member._id?.toString?.() || member._id || member.id;
+                  const isMember = channelSettingsMembers.includes(id);
+                  const isAdmin = channelSettingsAdmins.includes(id);
+
+                  return (
+                    <div key={id} className="member-row">
+                      <label className="member-item">
+                        <input
+                          type="checkbox"
+                          checked={isMember}
+                          onChange={() => {
+                            setChannelSettingsMembers((current) =>
+                              current.includes(id)
+                                ? current.filter((memberId) => memberId !== id)
+                                : [...current, id],
+                            );
+                          }}
+                        />
+                        <span>{member.name}</span>
+                      </label>
+                      <label className="admin-toggle">
+                        <input
+                          type="checkbox"
+                          checked={isAdmin}
+                          disabled={!isMember}
+                          onChange={() => {
+                            setChannelSettingsAdmins((current) =>
+                              current.includes(id)
+                                ? current.filter((adminId) => adminId !== id)
+                                : [...current, id],
+                            );
+                          }}
+                        />
+                        <span>Admin</span>
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="modal-button"
+                onClick={() => setShowChannelSettings(false)}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="modal-button primary">
+                Save
               </button>
             </div>
           </form>

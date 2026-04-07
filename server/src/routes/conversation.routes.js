@@ -56,6 +56,8 @@ conversationRouter.post("/", requireAuth, async (req, res) => {
         users: userIds,
         messagesIds: [],
         pinnedMessageIds: [],
+        channelOwnerId: new Types.ObjectId(req.userId),
+        channelAdminIds: [new Types.ObjectId(req.userId)],
       });
 
       const populated = await Conversation.findById(conversation._id)
@@ -211,6 +213,78 @@ conversationRouter.delete("/:conversationId/pin/:messageId", requireAuth, async 
     res.json(pinnedMessages);
   } catch (error) {
     res.status(500).json({ message: "Failed to unpin message" });
+  }
+});
+
+conversationRouter.get("/:conversationId/channel-settings", requireAuth, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const conversation = await Conversation.findById(conversationId)
+      .populate("users", "name email image")
+      .select("name type users channelOwnerId channelAdminIds");
+
+    if (!conversation || conversation.type !== "channel") {
+      return res.status(404).json({ message: "Channel not found" });
+    }
+
+    if (!conversation.users.some((id) => id._id?.toString() === req.userId || id.toString() === req.userId)) {
+      return res.status(403).json({ message: "Not a member of this channel" });
+    }
+
+    res.json(conversation);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch channel settings" });
+  }
+});
+
+conversationRouter.patch("/:conversationId/channel-settings", requireAuth, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { name, memberIds, adminIds } = req.body;
+
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation || conversation.type !== "channel") {
+      return res.status(404).json({ message: "Channel not found" });
+    }
+
+    const isOwner = conversation.channelOwnerId?.toString() === req.userId;
+    const isAdmin = conversation.channelAdminIds?.some((id) => id.toString() === req.userId);
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    if (name !== undefined) {
+      conversation.name = name;
+    }
+
+    if (Array.isArray(memberIds)) {
+      const uniqueMembers = [...new Set([...memberIds, req.userId])].map((id) => new Types.ObjectId(id));
+      conversation.users = uniqueMembers;
+
+      if (!uniqueMembers.some((id) => id.toString() === conversation.channelOwnerId?.toString())) {
+        conversation.channelOwnerId = new Types.ObjectId(req.userId);
+      }
+
+      if (Array.isArray(adminIds)) {
+        conversation.channelAdminIds = adminIds
+          .filter((id) => uniqueMembers.some((memberId) => memberId.toString() === id))
+          .map((id) => new Types.ObjectId(id));
+      }
+    } else if (Array.isArray(adminIds)) {
+      conversation.channelAdminIds = adminIds
+        .filter((id) => conversation.users.some((memberId) => memberId.toString() === id))
+        .map((id) => new Types.ObjectId(id));
+    }
+
+    await conversation.save();
+
+    const populated = await Conversation.findById(conversation._id)
+      .populate("users", "name email image bio isOnline")
+      .populate("lastMessage");
+
+    res.json(populated);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update channel settings" });
   }
 });
 

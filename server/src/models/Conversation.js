@@ -10,6 +10,8 @@ const ConversationSchema = new Schema(
     messagesIds: [{ type: Schema.Types.ObjectId, ref: "Message" }],
     lastMessage: { type: Schema.Types.ObjectId, ref: "Message" },
     pinnedMessageIds: [{ type: Schema.Types.ObjectId, ref: "Message" }],
+    channelOwnerId: { type: Schema.Types.ObjectId, ref: "User" },
+    channelAdminIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true },
 );
