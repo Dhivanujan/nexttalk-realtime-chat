@@ -85,6 +85,11 @@ export default function ChatPage() {
   const [channelSettingsReadOnly, setChannelSettingsReadOnly] = useState(false);
   const [channelSettingsOwnerId, setChannelSettingsOwnerId] = useState("");
   const [channelAuditLog, setChannelAuditLog] = useState([]);
+  const [channelAuditCursor, setChannelAuditCursor] = useState(null);
+  const [channelAuditHasMore, setChannelAuditHasMore] = useState(false);
+  const [channelAuditLoading, setChannelAuditLoading] = useState(false);
+  const [pendingOwnerTransferId, setPendingOwnerTransferId] = useState("");
+  const [showOwnerTransferModal, setShowOwnerTransferModal] = useState(false);
   const [showAvatarCropper, setShowAvatarCropper] = useState(false);
   const [avatarCropTarget, setAvatarCropTarget] = useState(null);
   const [avatarCropImageUrl, setAvatarCropImageUrl] = useState("");
@@ -462,15 +467,79 @@ export default function ChatPage() {
       });
   }, [activeConversation, isChannel]);
 
+  const formatAuditEntry = (entry) => {
+    const actor = entry.actorId?.name || "Someone";
+    const target = entry.targetId?.name || "a member";
+
+    switch (entry.action) {
+      case "channel_created":
+        return `${actor} created the channel.`;
+      case "name_updated":
+        return `${actor} renamed the channel to "${entry.meta?.to || ""}".`;
+      case "description_updated":
+        return `${actor} updated the description.`;
+      case "avatar_updated":
+        return `${actor} updated the channel avatar.`;
+      case "read_only_enabled":
+        return `${actor} enabled read-only mode.`;
+      case "read_only_disabled":
+        return `${actor} disabled read-only mode.`;
+      case "member_added":
+        return `${actor} added ${target}.`;
+      case "member_removed":
+        return `${actor} removed ${target}.`;
+      case "admin_added":
+        return `${actor} promoted ${target} to admin.`;
+      case "admin_removed":
+        return `${actor} removed ${target} as admin.`;
+      case "owner_transferred":
+        return `${actor} transferred ownership to ${target}.`;
+      default:
+        return `${actor} updated channel settings.`;
+    }
+  };
+
+  const loadChannelAudit = async (reset = false) => {
+    if (!activeConversation) return;
+    if (channelAuditLoading) return;
+
+    if (reset) {
+      setChannelAuditCursor(null);
+      setChannelAuditHasMore(false);
+    }
+
+    setChannelAuditLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("limit", "20");
+      if (!reset && channelAuditCursor) {
+        params.set("before", channelAuditCursor);
+      }
+
+      const response = await api.get(`/conversations/${activeConversation._id}/channel-audit?${params.toString()}`);
+      const { entries, nextCursor, hasMore } = response.data;
+
+      setChannelAuditLog((current) => (reset ? entries : [...current, ...entries]));
+      setChannelAuditCursor(nextCursor);
+      setChannelAuditHasMore(hasMore);
+    } catch (error) {
+      if (reset) {
+        setChannelAuditLog([]);
+        setChannelAuditCursor(null);
+        setChannelAuditHasMore(false);
+      }
+    } finally {
+      setChannelAuditLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!showChannelSettings || !isChannel || !activeConversation) {
       return;
     }
 
-    api.get(`/conversations/${activeConversation._id}/channel-audit`)
-      .then((response) => setChannelAuditLog(response.data))
-      .catch(() => setChannelAuditLog([]));
-  }, [showChannelSettings, isChannel, activeConversation]);
+    loadChannelAudit(true);
+  }, [showChannelSettings, isChannel, activeConversation?._id]);
 
   useEffect(() => {
     if (!activeConversation) {
@@ -702,6 +771,25 @@ export default function ChatPage() {
     } catch (error) {
       console.error("Failed to update channel settings", error);
     }
+  };
+
+  const handleOwnerSelection = (nextOwnerId) => {
+    if (!isChannelOwner) return;
+    if (nextOwnerId === channelSettingsOwnerId) return;
+    setPendingOwnerTransferId(nextOwnerId);
+    setShowOwnerTransferModal(true);
+  };
+
+  const confirmOwnerTransfer = () => {
+    if (!pendingOwnerTransferId) return;
+    setChannelSettingsOwnerId(pendingOwnerTransferId);
+    setShowOwnerTransferModal(false);
+    setPendingOwnerTransferId("");
+  };
+
+  const resolveMemberName = (memberId) => {
+    const member = channelMemberOptions.find((item) => (item._id || item.id) === memberId);
+    return member?.name || "member";
   };
 
   const openAvatarCropper = (file, target) => {
@@ -1767,7 +1855,7 @@ export default function ChatPage() {
               <select
                 className="modal-select"
                 value={channelSettingsOwnerId}
-                onChange={(event) => setChannelSettingsOwnerId(event.target.value)}
+                onChange={(event) => handleOwnerSelection(event.target.value)}
                 disabled={!isChannelOwner}
               >
                 {channelSettingsMembers.map((memberId) => {
@@ -1845,11 +1933,7 @@ export default function ChatPage() {
               <div className="audit-list">
                 {channelAuditLog.map((entry) => (
                   <div key={`${entry._id || entry.createdAt}`} className="audit-item">
-                    <span className="audit-action">{entry.action.replace(/_/g, " ")}</span>
-                    <span className="audit-meta">
-                      {entry.actorId?.name || "System"}
-                      {entry.targetId?.name ? ` → ${entry.targetId.name}` : ""}
-                    </span>
+                    <span className="audit-action">{formatAuditEntry(entry)}</span>
                     <span className="audit-time">
                       {new Date(entry.createdAt).toLocaleString()}
                     </span>
@@ -1859,6 +1943,16 @@ export default function ChatPage() {
                   <div className="list-empty">No recent changes.</div>
                 )}
               </div>
+              {channelAuditHasMore && (
+                <button
+                  type="button"
+                  className="audit-load"
+                  disabled={channelAuditLoading}
+                  onClick={() => loadChannelAudit(false)}
+                >
+                  {channelAuditLoading ? "Loading..." : "Load more"}
+                </button>
+              )}
             </div>
             <div className="modal-actions">
               <button
@@ -1873,6 +1967,40 @@ export default function ChatPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {showOwnerTransferModal && (
+        <div className="overlay" onClick={() => {
+          setShowOwnerTransferModal(false);
+          setPendingOwnerTransferId("");
+        }}>
+          <div className="modal warning" onClick={(event) => event.stopPropagation()}>
+            <h3 className="modal-title">Transfer ownership?</h3>
+            <p className="warning-text">
+              You are about to transfer ownership to {resolveMemberName(pendingOwnerTransferId)}.
+              You will lose owner privileges immediately. This action cannot be undone.
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="modal-button"
+                onClick={() => {
+                  setShowOwnerTransferModal(false);
+                  setPendingOwnerTransferId("");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="modal-button danger"
+                onClick={confirmOwnerTransfer}
+              >
+                Transfer ownership
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

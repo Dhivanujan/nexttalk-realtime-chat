@@ -250,6 +250,8 @@ conversationRouter.get("/:conversationId/channel-settings", requireAuth, async (
 conversationRouter.get("/:conversationId/channel-audit", requireAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+    const before = req.query.before ? new Date(req.query.before) : null;
     const conversation = await Conversation.findById(conversationId)
       .populate("channelAudit.actorId", "name email image")
       .populate("channelAudit.targetId", "name email image")
@@ -263,8 +265,19 @@ conversationRouter.get("/:conversationId/channel-audit", requireAuth, async (req
       return res.status(403).json({ message: "Not a member of this channel" });
     }
 
-    const audit = (conversation.channelAudit || []).slice(-50).reverse();
-    res.json(audit);
+    const sorted = (conversation.channelAudit || [])
+      .slice()
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const filtered = before
+      ? sorted.filter((entry) => new Date(entry.createdAt) < before)
+      : sorted;
+
+    const entries = filtered.slice(0, limit);
+    const nextCursor = entries.length > 0 ? entries[entries.length - 1].createdAt : null;
+    const hasMore = filtered.length > limit;
+
+    res.json({ entries, nextCursor, hasMore });
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch channel audit" });
   }

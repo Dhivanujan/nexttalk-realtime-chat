@@ -11,11 +11,25 @@
   --bg-message-in: rgba(255, 255, 255, 0.86);
   --bg-message-own: linear-gradient(135deg, #22c1c3, #2f80ed 60%, #5b8cff);
   --bg-input: rgba(255, 255, 255, 0.75);
+.modal.warning {
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  box-shadow: 0 18px 40px -18px rgba(239, 68, 68, 0.6);
+}
   --bg-search: rgba(255, 255, 255, 0.68);
   --bg-hover: rgba(34, 193, 195, 0.12);
   --bg-active: rgba(47, 128, 237, 0.18);
 
   --text-primary: #1f2937;
+.modal-button.danger {
+  background: #ef4444;
+  color: white;
+}
+
+.warning-text {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
   --text-secondary: #6b7280;
   --text-own-message: #ffffff;
   --text-in-message: #1f2937;
@@ -1305,6 +1319,15 @@ body {
 .audit-time {
   color: var(--text-secondary);
   font-size: 0.7rem;
+}
+.audit-load {
+  margin-top: 0.5rem;
+  background: rgba(47, 128, 237, 0.12);
+  border: 1px solid rgba(47, 128, 237, 0.3);
+  color: var(--text-primary);
+  border-radius: 10px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
 }
 
 .avatar-cropper {
