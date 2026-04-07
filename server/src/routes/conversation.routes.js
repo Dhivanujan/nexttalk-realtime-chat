@@ -36,7 +36,7 @@ conversationRouter.get("/", requireAuth, async (req, res) => {
 
 conversationRouter.post("/", requireAuth, async (req, res) => {
   try {
-    const { userId, isGroup, members, name, type } = req.body;
+    const { userId, isGroup, members, name, type, description, image, isReadOnly } = req.body;
 
     const normalizedType = type || (isGroup ? "group" : "direct");
 
@@ -53,6 +53,9 @@ conversationRouter.post("/", requireAuth, async (req, res) => {
         name,
         type: "channel",
         isGroup: true,
+        description: description || "",
+        image: image || "",
+        isReadOnly: Boolean(isReadOnly),
         users: userIds,
         messagesIds: [],
         pinnedMessageIds: [],
@@ -221,7 +224,7 @@ conversationRouter.get("/:conversationId/channel-settings", requireAuth, async (
     const { conversationId } = req.params;
     const conversation = await Conversation.findById(conversationId)
       .populate("users", "name email image")
-      .select("name type users channelOwnerId channelAdminIds");
+      .select("name type users description image isReadOnly channelOwnerId channelAdminIds");
 
     if (!conversation || conversation.type !== "channel") {
       return res.status(404).json({ message: "Channel not found" });
@@ -240,7 +243,7 @@ conversationRouter.get("/:conversationId/channel-settings", requireAuth, async (
 conversationRouter.patch("/:conversationId/channel-settings", requireAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
-    const { name, memberIds, adminIds } = req.body;
+    const { name, description, image, isReadOnly, memberIds, adminIds, ownerId } = req.body;
 
     const conversation = await Conversation.findById(conversationId);
     if (!conversation || conversation.type !== "channel") {
@@ -257,11 +260,28 @@ conversationRouter.patch("/:conversationId/channel-settings", requireAuth, async
       conversation.name = name;
     }
 
+    if (description !== undefined) {
+      conversation.description = description;
+    }
+
+    if (image !== undefined) {
+      conversation.image = image;
+    }
+
+    if (isReadOnly !== undefined) {
+      conversation.isReadOnly = Boolean(isReadOnly);
+    }
+
+    if (ownerId && !isOwner) {
+      return res.status(403).json({ message: "Only the owner can transfer ownership" });
+    }
+
     if (Array.isArray(memberIds)) {
       const uniqueMembers = [...new Set([...memberIds, req.userId])].map((id) => new Types.ObjectId(id));
       conversation.users = uniqueMembers;
 
-      if (!uniqueMembers.some((id) => id.toString() === conversation.channelOwnerId?.toString())) {
+      const ownerMatch = conversation.channelOwnerId?.toString();
+      if (!uniqueMembers.some((id) => id.toString() === ownerMatch)) {
         conversation.channelOwnerId = new Types.ObjectId(req.userId);
       }
 
@@ -274,6 +294,14 @@ conversationRouter.patch("/:conversationId/channel-settings", requireAuth, async
       conversation.channelAdminIds = adminIds
         .filter((id) => conversation.users.some((memberId) => memberId.toString() === id))
         .map((id) => new Types.ObjectId(id));
+    }
+
+    if (ownerId) {
+      const ownerIsMember = conversation.users.some((memberId) => memberId.toString() === ownerId);
+      if (!ownerIsMember) {
+        conversation.users.push(new Types.ObjectId(ownerId));
+      }
+      conversation.channelOwnerId = new Types.ObjectId(ownerId);
     }
 
     await conversation.save();

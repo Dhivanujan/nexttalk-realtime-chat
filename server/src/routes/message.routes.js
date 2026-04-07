@@ -55,6 +55,19 @@ messageRouter.post("/", requireAuth, async (req, res) => {
       return;
     }
 
+    const conversation = await Conversation.findById(conversationId).select("type isReadOnly channelOwnerId channelAdminIds");
+    if (!conversation) {
+      return res.status(404).json({ message: "Conversation not found" });
+    }
+
+    if (conversation.type === "channel" && conversation.isReadOnly) {
+      const isOwner = conversation.channelOwnerId?.toString() === req.userId;
+      const isAdmin = conversation.channelAdminIds?.some((id) => id.toString() === req.userId);
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ message: "Only admins can post in this channel" });
+      }
+    }
+
     const newMessage = await Message.create({
       body: message,
       image,
@@ -66,7 +79,7 @@ messageRouter.post("/", requireAuth, async (req, res) => {
       status: 'sent'
     });
 
-    const conversation = await Conversation.findByIdAndUpdate(conversationId, {
+    const updatedConversation = await Conversation.findByIdAndUpdate(conversationId, {
       $set: { lastMessage: newMessage._id, updatedAt: new Date() },
       $push: { messagesIds: newMessage._id },
     }).populate("users", "pushSubscription _id");
@@ -88,7 +101,7 @@ messageRouter.post("/", requireAuth, async (req, res) => {
         url: `/?conversation=${conversationId}`
       };
       
-      const otherUsers = conversation.users.filter(u => u._id.toString() !== req.userId);
+      const otherUsers = updatedConversation.users.filter(u => u._id.toString() !== req.userId);
       otherUsers.forEach(u => {
         if (u.pushSubscription) {
           sendPushNotification(u.pushSubscription, notificationPayload);

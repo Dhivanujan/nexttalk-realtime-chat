@@ -70,12 +70,20 @@ export default function ChatPage() {
   const [showChannelModal, setShowChannelModal] = useState(false);
   const [channelName, setChannelName] = useState("");
   const [channelMembers, setChannelMembers] = useState([]);
+  const [channelDescription, setChannelDescription] = useState("");
+  const [channelImageFile, setChannelImageFile] = useState(null);
+  const [channelReadOnly, setChannelReadOnly] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [reactionPickerId, setReactionPickerId] = useState(null);
   const [showChannelSettings, setShowChannelSettings] = useState(false);
   const [channelSettingsName, setChannelSettingsName] = useState("");
   const [channelSettingsMembers, setChannelSettingsMembers] = useState([]);
   const [channelSettingsAdmins, setChannelSettingsAdmins] = useState([]);
+  const [channelSettingsDescription, setChannelSettingsDescription] = useState("");
+  const [channelSettingsImage, setChannelSettingsImage] = useState("");
+  const [channelSettingsImageFile, setChannelSettingsImageFile] = useState(null);
+  const [channelSettingsReadOnly, setChannelSettingsReadOnly] = useState(false);
+  const [channelSettingsOwnerId, setChannelSettingsOwnerId] = useState("");
   const [hapticsEnabled, setHapticsEnabled] = useState(() => {
     const stored = localStorage.getItem("chat-haptics");
     return stored === null ? true : stored === "true";
@@ -405,6 +413,11 @@ export default function ChatPage() {
       setChannelSettingsName("");
       setChannelSettingsMembers([]);
       setChannelSettingsAdmins([]);
+      setChannelSettingsDescription("");
+      setChannelSettingsImage("");
+      setChannelSettingsImageFile(null);
+      setChannelSettingsReadOnly(false);
+      setChannelSettingsOwnerId("");
       return;
     }
 
@@ -415,6 +428,10 @@ export default function ChatPage() {
         setChannelSettingsMembers(memberIds);
         const adminIds = response.data.channelAdminIds?.map((id) => id?.toString?.() || id) || [];
         setChannelSettingsAdmins(adminIds);
+        setChannelSettingsDescription(response.data.description || "");
+        setChannelSettingsImage(response.data.image || "");
+        setChannelSettingsReadOnly(Boolean(response.data.isReadOnly));
+        setChannelSettingsOwnerId(response.data.channelOwnerId?.toString?.() || response.data.channelOwnerId || "");
       })
       .catch(() => {
         setChannelSettingsName(activeConversation.name || "");
@@ -424,6 +441,10 @@ export default function ChatPage() {
         setChannelSettingsAdmins(
           activeConversation.channelAdminIds?.map((id) => id?._id || id) || [],
         );
+        setChannelSettingsDescription(activeConversation.description || "");
+        setChannelSettingsImage(activeConversation.image || "");
+        setChannelSettingsReadOnly(Boolean(activeConversation.isReadOnly));
+        setChannelSettingsOwnerId(activeConversation.channelOwnerId?._id || activeConversation.channelOwnerId || "");
       });
   }, [activeConversation, isChannel]);
 
@@ -498,6 +519,9 @@ export default function ChatPage() {
   };
 
   const startRecording = async () => {
+    if (!canPostInChannel) {
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
@@ -597,15 +621,26 @@ export default function ChatPage() {
     if (!channelName.trim()) return;
 
     try {
+      let uploadedImage = "";
+      if (channelImageFile) {
+        uploadedImage = await uploadFile(channelImageFile);
+      }
+
       const response = await api.post("/conversations", {
         type: "channel",
         name: channelName.trim(),
+        description: channelDescription.trim(),
+        image: uploadedImage,
+        isReadOnly: channelReadOnly,
         members: channelMembers,
       });
       setConversations((current) => [response.data, ...current]);
       setActiveConversation(response.data);
       setChannelName("");
       setChannelMembers([]);
+      setChannelDescription("");
+      setChannelImageFile(null);
+      setChannelReadOnly(false);
       setShowChannelModal(false);
     } catch (error) {
       console.error("Failed to create channel", error);
@@ -617,10 +652,19 @@ export default function ChatPage() {
     if (!activeConversation) return;
 
     try {
+      let nextImage = channelSettingsImage;
+      if (channelSettingsImageFile) {
+        nextImage = await uploadFile(channelSettingsImageFile);
+      }
+
       const response = await api.patch(`/conversations/${activeConversation._id}/channel-settings`, {
         name: channelSettingsName.trim(),
+        description: channelSettingsDescription.trim(),
+        image: nextImage,
+        isReadOnly: channelSettingsReadOnly,
         memberIds: channelSettingsMembers,
         adminIds: channelSettingsAdmins,
+        ownerId: channelSettingsOwnerId || undefined,
       });
 
       setConversations((current) =>
@@ -630,13 +674,14 @@ export default function ChatPage() {
       );
       setActiveConversation(response.data);
       setShowChannelSettings(false);
+      setChannelSettingsImageFile(null);
     } catch (error) {
       console.error("Failed to update channel settings", error);
     }
   };
 
   const sendSticker = async (stickerPath) => {
-    if (!activeConversation || sending) return;
+    if (!activeConversation || sending || !canPostInChannel) return;
     setSending(true);
     setStickerPickerOpen(false);
 
@@ -688,7 +733,7 @@ export default function ChatPage() {
 
   async function sendMessage(event) {
     if (event) event.preventDefault();
-    if ((!draft.trim() && !imageFile && !audioBlob) || !activeConversation) {
+    if ((!draft.trim() && !imageFile && !audioBlob) || !activeConversation || !canPostInChannel) {
       return;
     }
 
@@ -891,6 +936,8 @@ export default function ChatPage() {
     });
   }, [activeConversation?.channelAdminIds, user.id]);
 
+  const canPostInChannel = !isChannel || !activeConversation?.isReadOnly || isChannelOwner || isChannelAdmin;
+
   if (!user) {
     return null;
   }
@@ -972,6 +1019,7 @@ export default function ChatPage() {
                     {conversation.lastMessage?.isDeleted ? "🚫 This message was deleted" : 
                      conversation.lastMessage?.audio ? "🎤 Audio message" : 
                      conversation.lastMessage?.image ? "📷 Image" : 
+                     conversation.lastMessage?.sticker ? "✨ Sticker" : 
                      conversation.lastMessage?.body || "No messages yet"}
                   </span>
                   {conversation.unreadCount > 0 && (
@@ -1118,34 +1166,55 @@ export default function ChatPage() {
           )}
         </header>
 
-        {pinnedMessages.length > 0 && (
-          <div className="pinned-bar">
-            <div className="pinned-title">Pinned</div>
-            <div className="pinned-list">
-              {pinnedMessages.map((message) => (
-                <div key={message._id} className="pinned-item">
-                  <span className="pinned-text">
-                    {message.body || (message.sticker ? "Sticker" : message.image ? "Image" : message.audio ? "Audio" : "Message")}
-                  </span>
-                  <button
-                    type="button"
-                    className="pinned-action"
-                    onClick={() => handleUnpinMessage(message._id)}
-                    title="Unpin"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
+        <div className="chat-body">
+          {isChannel && (activeConversation.description || activeConversation.image || activeConversation.isReadOnly) && (
+            <div className="channel-info">
+              {activeConversation.image && (
+                <img
+                  src={resolveMediaUrl(activeConversation.image)}
+                  alt="channel"
+                  className="channel-avatar"
+                />
+              )}
+              <div className="channel-info-body">
+                {activeConversation.description && (
+                  <p className="channel-description">{activeConversation.description}</p>
+                )}
+                {activeConversation.isReadOnly && !canPostInChannel && (
+                  <span className="channel-readonly">Read-only: only admins can post</span>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="message-stream" ref={messageStreamRef}>
-          <div ref={observerTarget} className="observer-target" />
-          {loadingMore && <div className="message-loading">Loading older messages...</div>}
-          
-          {messages.map((message, index) => (
+          {pinnedMessages.length > 0 && (
+            <div className="pinned-bar">
+              <div className="pinned-title">Pinned</div>
+              <div className="pinned-list">
+                {pinnedMessages.map((message) => (
+                  <div key={message._id} className="pinned-item">
+                    <span className="pinned-text">
+                      {message.body || (message.sticker ? "Sticker" : message.image ? "Image" : message.audio ? "Audio" : "Message")}
+                    </span>
+                    <button
+                      type="button"
+                      className="pinned-action"
+                      onClick={() => handleUnpinMessage(message._id)}
+                      title="Unpin"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="message-stream" ref={messageStreamRef}>
+            <div ref={observerTarget} className="observer-target" />
+            {loadingMore && <div className="message-loading">Loading older messages...</div>}
+            
+            {messages.map((message, index) => (
             <Fragment key={message._id}>
               {index === unreadIndex && (
                 <div className="unread-divider">
@@ -1283,18 +1352,19 @@ export default function ChatPage() {
               </div>
             </Fragment>
           ))}
-          {activeConversation && Array.from(typingUsers).filter(id => activeConversation.users.some(u => (u._id || u.id) === id)).length > 0 && (
-            <div className="message typing-indicator">
-              Someone is typing...
-            </div>
+            {activeConversation && Array.from(typingUsers).filter(id => activeConversation.users.some(u => (u._id || u.id) === id)).length > 0 && (
+              <div className="message typing-indicator">
+                Someone is typing...
+              </div>
+            )}
+          </div>
+
+          {showNewMessagePill && (
+            <button type="button" className="new-message-pill" onClick={scrollToBottom}>
+              New messages ↓
+            </button>
           )}
         </div>
-
-        {showNewMessagePill && (
-          <button type="button" className="new-message-pill" onClick={scrollToBottom}>
-            New messages ↓
-          </button>
-        )}
 
         <form className="composer composer-stack" onSubmit={sendMessage}>
           {stickerPickerOpen && (
@@ -1350,7 +1420,7 @@ export default function ChatPage() {
             />
             <label 
               htmlFor="file-upload" 
-              className={`composer-icon ${(!activeConversation || sending) ? "disabled" : ""}`}
+              className={`composer-icon ${(!activeConversation || sending || !canPostInChannel) ? "disabled" : ""}`}
               onClick={() => triggerHaptic(8)}
               title="Attach image"
             >
@@ -1358,9 +1428,9 @@ export default function ChatPage() {
             </label>
             <button
               type="button"
-              className={`composer-icon ${(!activeConversation || sending) ? "disabled" : ""}`}
+              className={`composer-icon ${(!activeConversation || sending || !canPostInChannel) ? "disabled" : ""}`}
               onClick={() => {
-                if (!activeConversation || sending) return;
+                if (!activeConversation || sending || !canPostInChannel) return;
                 triggerHaptic(8);
                 setStickerPickerOpen((current) => !current);
               }}
@@ -1372,8 +1442,8 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={startRecording}
-                disabled={!activeConversation || sending}
-                className={`composer-icon ${(!activeConversation || sending) ? "disabled" : ""}`}
+                disabled={!activeConversation || sending || !canPostInChannel}
+                className={`composer-icon ${(!activeConversation || sending || !canPostInChannel) ? "disabled" : ""}`}
                 title="Record audio"
               >
                 🎤
@@ -1392,13 +1462,13 @@ export default function ChatPage() {
               value={draft}
               onChange={handleTyping}
               placeholder="Write a message"
-              disabled={!activeConversation || sending || isRecording}
+              disabled={!activeConversation || sending || isRecording || !canPostInChannel}
               className={isRecording ? "composer-input disabled" : "composer-input"}
             />
             <button
               type="submit"
               onClick={() => triggerHaptic(10)}
-              disabled={!activeConversation || sending || isRecording || (!draft.trim() && !imageFile && !audioBlob)}
+              disabled={!activeConversation || sending || isRecording || !canPostInChannel || (!draft.trim() && !imageFile && !audioBlob)}
             >
               {sending ? '...' : 'Send'}
             </button>
@@ -1497,6 +1567,33 @@ export default function ChatPage() {
               />
             </div>
             <div className="modal-field">
+              <label>Description</label>
+              <textarea
+                className="modal-textarea"
+                value={channelDescription}
+                onChange={(e) => setChannelDescription(e.target.value)}
+                placeholder="Channel purpose"
+              />
+            </div>
+            <div className="modal-field">
+              <label>Channel avatar</label>
+              <input type="file" accept="image/*" onChange={(e) => setChannelImageFile(e.target.files?.[0] || null)} />
+            </div>
+            <div className="modal-field toggle-row">
+              <div>
+                <label className="toggle-label">Read-only</label>
+                <span className="toggle-hint">Only admins can post</span>
+              </div>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={channelReadOnly}
+                  onChange={(event) => setChannelReadOnly(event.target.checked)}
+                />
+                <span className="toggle-slider" />
+              </label>
+            </div>
+            <div className="modal-field">
               <label>Add members</label>
               <div className="member-list">
                 {channelMemberOptions.map((member) => {
@@ -1554,12 +1651,64 @@ export default function ChatPage() {
               />
             </div>
             <div className="modal-field">
+              <label>Description</label>
+              <textarea
+                className="modal-textarea"
+                value={channelSettingsDescription}
+                onChange={(event) => setChannelSettingsDescription(event.target.value)}
+              />
+            </div>
+            <div className="modal-field">
+              <label>Channel avatar</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(event) => setChannelSettingsImageFile(event.target.files?.[0] || null)}
+              />
+              {channelSettingsImage && (
+                <img src={resolveMediaUrl(channelSettingsImage)} alt="channel" className="channel-avatar-preview" />
+              )}
+            </div>
+            <div className="modal-field toggle-row">
+              <div>
+                <label className="toggle-label">Read-only</label>
+                <span className="toggle-hint">Only admins can post</span>
+              </div>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={channelSettingsReadOnly}
+                  onChange={(event) => setChannelSettingsReadOnly(event.target.checked)}
+                />
+                <span className="toggle-slider" />
+              </label>
+            </div>
+            <div className="modal-field">
+              <label>Owner</label>
+              <select
+                className="modal-select"
+                value={channelSettingsOwnerId}
+                onChange={(event) => setChannelSettingsOwnerId(event.target.value)}
+                disabled={!isChannelOwner}
+              >
+                {channelSettingsMembers.map((memberId) => {
+                  const member = channelMemberOptions.find((userItem) => (userItem._id || userItem.id) === memberId);
+                  return (
+                    <option key={memberId} value={memberId}>
+                      {member?.name || "Member"}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+            <div className="modal-field">
               <label>Members</label>
               <div className="member-list">
                 {allUsers.map((member) => {
                   const id = member._id?.toString?.() || member._id || member.id;
                   const isMember = channelSettingsMembers.includes(id);
                   const isAdmin = channelSettingsAdmins.includes(id);
+                  const isOwner = channelSettingsOwnerId === id;
 
                   return (
                     <div key={id} className="member-row">
@@ -1567,6 +1716,7 @@ export default function ChatPage() {
                         <input
                           type="checkbox"
                           checked={isMember}
+                          disabled={isOwner}
                           onChange={() => {
                             setChannelSettingsMembers((current) =>
                               current.includes(id)
@@ -1581,7 +1731,7 @@ export default function ChatPage() {
                         <input
                           type="checkbox"
                           checked={isAdmin}
-                          disabled={!isMember}
+                          disabled={!isMember || isOwner}
                           onChange={() => {
                             setChannelSettingsAdmins((current) =>
                               current.includes(id)

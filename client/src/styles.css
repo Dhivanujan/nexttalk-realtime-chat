@@ -518,6 +518,46 @@ body {
     radial-gradient(circle at 30% 20%, rgba(47, 128, 237, 0.18), transparent 60%);
 }
 
+.chat-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+
+.channel-info {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.channel-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.channel-info-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.channel-description {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.channel-readonly {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
 .pinned-bar {
   background: rgba(15, 23, 42, 0.08);
   border-bottom: 1px solid var(--border-color);
@@ -602,6 +642,7 @@ body {
   flex-direction: column;
   gap: 0.5rem;
   scroll-behavior: smooth;
+  flex: 1;
 }
 
 .unread-divider {
@@ -1187,9 +1228,27 @@ body {
   font-family: inherit;
 }
 
+.modal-select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
 .modal-textarea {
   min-height: 60px;
   resize: vertical;
+}
+
+.channel-avatar-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  object-fit: cover;
+  margin-top: 8px;
+  border: 1px solid var(--border-color);
 }
 
 .modal-actions {
