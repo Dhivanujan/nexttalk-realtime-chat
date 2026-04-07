@@ -4,10 +4,12 @@ const { Schema, Types, model } = pkg;
 const ConversationSchema = new Schema(
   {
     name: { type: String },
+    type: { type: String, enum: ["direct", "group", "channel"], default: "direct" },
     isGroup: { type: Boolean, default: false },
     users: [{ type: Schema.Types.ObjectId, ref: "User", required: true }],
     messagesIds: [{ type: Schema.Types.ObjectId, ref: "Message" }],
     lastMessage: { type: Schema.Types.ObjectId, ref: "Message" },
+    pinnedMessageIds: [{ type: Schema.Types.ObjectId, ref: "Message" }],
   },
   { timestamps: true },
 );

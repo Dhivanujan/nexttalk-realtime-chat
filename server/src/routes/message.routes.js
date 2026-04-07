@@ -43,15 +43,15 @@ messageRouter.get("/:conversationId", requireAuth, async (req, res) => {
 
 messageRouter.post("/", requireAuth, async (req, res) => {
   try {
-    const { message, image, audio, conversationId } = req.body;
+    const { message, image, audio, sticker, conversationId } = req.body;
 
     if (!conversationId) {
       res.status(400).json({ message: "conversationId is required" });
       return;
     }
 
-    if (!message && !image && !audio) {
-      res.status(400).json({ message: "message, image, or audio is required" });
+    if (!message && !image && !audio && !sticker) {
+      res.status(400).json({ message: "message, image, audio, or sticker is required" });
       return;
     }
 
@@ -59,6 +59,7 @@ messageRouter.post("/", requireAuth, async (req, res) => {
       body: message,
       image,
       audio,
+      sticker,
       conversationId: new Types.ObjectId(conversationId),
       senderId: new Types.ObjectId(req.userId),
       seenIds: [new Types.ObjectId(req.userId)],
@@ -82,7 +83,7 @@ messageRouter.post("/", requireAuth, async (req, res) => {
       const senderName = populatedMessage.senderId.name;
       const notificationPayload = {
         title: `New message from ${senderName}`,
-        body: message || (audio ? "🎤 Audio message" : "📷 Image"),
+        body: message || (audio ? "🎤 Audio message" : sticker ? "✨ Sticker" : "📷 Image"),
         icon: populatedMessage.senderId.image || "/favicon.ico",
         url: `/?conversation=${conversationId}`
       };
@@ -98,6 +99,49 @@ messageRouter.post("/", requireAuth, async (req, res) => {
     res.status(201).json(populatedMessage);
   } catch (error) {
     res.status(500).json({ message: "Failed to send message" });
+  }
+});
+
+messageRouter.post("/:messageId/reactions", requireAuth, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { emoji } = req.body;
+
+    if (!emoji) {
+      return res.status(400).json({ message: "emoji is required" });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    const existingReaction = message.reactions?.find((reaction) => reaction.emoji === emoji);
+
+    if (existingReaction) {
+      const hasReacted = existingReaction.userIds.some((id) => id.toString() === req.userId);
+      if (hasReacted) {
+        existingReaction.userIds = existingReaction.userIds.filter((id) => id.toString() !== req.userId);
+      } else {
+        existingReaction.userIds.push(new Types.ObjectId(req.userId));
+      }
+    } else {
+      message.reactions.push({ emoji, userIds: [new Types.ObjectId(req.userId)] });
+    }
+
+    message.reactions = message.reactions.filter((reaction) => reaction.userIds.length > 0);
+    await message.save();
+
+    const populated = await Message.findById(message._id).populate("senderId", "name email image");
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(message.conversationId.toString()).emit("message-reaction-updated", populated);
+    }
+
+    res.json(populated);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update reactions" });
   }
 });
 
@@ -118,6 +162,7 @@ messageRouter.delete("/:messageId", requireAuth, async (req, res) => {
     message.body = "This message was deleted";
     message.image = undefined;
     message.audio = undefined;
+    message.sticker = undefined;
     await message.save();
 
     const io = req.app.get("io");

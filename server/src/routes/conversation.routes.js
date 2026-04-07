@@ -36,9 +36,37 @@ conversationRouter.get("/", requireAuth, async (req, res) => {
 
 conversationRouter.post("/", requireAuth, async (req, res) => {
   try {
-    const { userId, isGroup, members, name } = req.body;
+    const { userId, isGroup, members, name, type } = req.body;
 
-    if (isGroup) {
+    const normalizedType = type || (isGroup ? "group" : "direct");
+
+    if (normalizedType === "channel") {
+      if (!name) {
+        res.status(400).json({ message: "Channel name is required" });
+        return;
+      }
+
+      const channelMembers = Array.isArray(members) ? members : [];
+      const userIds = [...new Set([...channelMembers, req.userId])].map((id) => new Types.ObjectId(id));
+
+      const conversation = await Conversation.create({
+        name,
+        type: "channel",
+        isGroup: true,
+        users: userIds,
+        messagesIds: [],
+        pinnedMessageIds: [],
+      });
+
+      const populated = await Conversation.findById(conversation._id)
+        .populate("users", "name email image bio isOnline")
+        .populate("lastMessage");
+
+      res.status(201).json(populated);
+      return;
+    }
+
+    if (normalizedType === "group") {
       if (!members || members.length < 2 || !name) {
         res.status(400).json({ message: "Invalid group conversation payload" });
         return;
@@ -48,9 +76,11 @@ conversationRouter.post("/", requireAuth, async (req, res) => {
 
       const conversation = await Conversation.create({
         name,
+        type: "group",
         isGroup: true,
         users: userIds,
         messagesIds: [],
+        pinnedMessageIds: [],
       });
 
       const populated = await Conversation.findById(conversation._id)
@@ -68,6 +98,7 @@ conversationRouter.post("/", requireAuth, async (req, res) => {
 
     const existing = await Conversation.findOne({
       isGroup: false,
+      $or: [{ type: "direct" }, { type: { $exists: false } }],
       users: { $all: [new Types.ObjectId(req.userId), new Types.ObjectId(userId)] },
     })
       .populate("users", "name email image bio isOnline")
@@ -80,8 +111,10 @@ conversationRouter.post("/", requireAuth, async (req, res) => {
 
     const newConversation = await Conversation.create({
       users: [req.userId, userId],
+      type: "direct",
       isGroup: false,
       messagesIds: [],
+      pinnedMessageIds: [],
     });
 
     const populated = await Conversation.findById(newConversation._id)
@@ -91,6 +124,93 @@ conversationRouter.post("/", requireAuth, async (req, res) => {
     res.status(201).json(populated);
   } catch (error) {
     res.status(500).json({ message: "Failed to create conversation" });
+  }
+});
+
+conversationRouter.get("/:conversationId/pins", requireAuth, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const conversation = await Conversation.findById(conversationId).select("users pinnedMessageIds");
+    if (!conversation) {
+      return res.status(404).json({ message: "Conversation not found" });
+    }
+
+    if (!conversation.users.some((id) => id.toString() === req.userId)) {
+      return res.status(403).json({ message: "Not a member of this conversation" });
+    }
+
+    const pinnedMessages = await Message.find({ _id: { $in: conversation.pinnedMessageIds } })
+      .populate("senderId", "name email image")
+      .sort({ createdAt: -1 });
+
+    res.json(pinnedMessages);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch pinned messages" });
+  }
+});
+
+conversationRouter.post("/:conversationId/pin", requireAuth, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { messageId } = req.body;
+
+    if (!messageId) {
+      return res.status(400).json({ message: "messageId is required" });
+    }
+
+    const conversation = await Conversation.findById(conversationId).select("users pinnedMessageIds");
+    if (!conversation) {
+      return res.status(404).json({ message: "Conversation not found" });
+    }
+
+    if (!conversation.users.some((id) => id.toString() === req.userId)) {
+      return res.status(403).json({ message: "Not a member of this conversation" });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message || message.conversationId.toString() !== conversationId) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    if (!conversation.pinnedMessageIds.some((id) => id.toString() === messageId)) {
+      conversation.pinnedMessageIds.push(message._id);
+      await conversation.save();
+    }
+
+    const pinnedMessages = await Message.find({ _id: { $in: conversation.pinnedMessageIds } })
+      .populate("senderId", "name email image")
+      .sort({ createdAt: -1 });
+
+    res.json(pinnedMessages);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to pin message" });
+  }
+});
+
+conversationRouter.delete("/:conversationId/pin/:messageId", requireAuth, async (req, res) => {
+  try {
+    const { conversationId, messageId } = req.params;
+    const conversation = await Conversation.findById(conversationId).select("users pinnedMessageIds");
+    if (!conversation) {
+      return res.status(404).json({ message: "Conversation not found" });
+    }
+
+    if (!conversation.users.some((id) => id.toString() === req.userId)) {
+      return res.status(403).json({ message: "Not a member of this conversation" });
+    }
+
+    conversation.pinnedMessageIds = conversation.pinnedMessageIds.filter(
+      (id) => id.toString() !== messageId,
+    );
+    await conversation.save();
+
+    const pinnedMessages = await Message.find({ _id: { $in: conversation.pinnedMessageIds } })
+      .populate("senderId", "name email image")
+      .sort({ createdAt: -1 });
+
+    res.json(pinnedMessages);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to unpin message" });
   }
 });
 

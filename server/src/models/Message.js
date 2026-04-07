@@ -6,11 +6,18 @@ const MessageSchema = new Schema(
     body: { type: String },
     image: { type: String },
     audio: { type: String },
+    sticker: { type: String },
     conversationId: { type: Schema.Types.ObjectId, ref: "Conversation", required: true },
     senderId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     seenIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
     status: { type: String, enum: ['sent', 'delivered', 'read'], default: 'sent' },
     isDeleted: { type: Boolean, default: false },
+    reactions: [
+      {
+        emoji: { type: String, required: true },
+        userIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
+      },
+    ],
   },
   { timestamps: true },
 );

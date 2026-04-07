@@ -5,7 +5,11 @@ import { getSocket } from "../lib/socket";
 
 
 function getConversationTitle(conversation, currentUserId) {
-  if (conversation.isGroup) {
+  if (conversation.type === "channel") {
+    return `#${conversation.name || "channel"}`;
+  }
+
+  if (conversation.isGroup || conversation.type === "group") {
     return conversation.name || "Group";
   }
 
@@ -62,10 +66,43 @@ export default function ChatPage() {
   const touchStartRef = useRef({ x: 0, y: 0 });
   const touchDeltaRef = useRef({ x: 0, y: 0 });
   const [bumpConversationId, setBumpConversationId] = useState(null);
+  const [pinnedMessages, setPinnedMessages] = useState([]);
+  const [showChannelModal, setShowChannelModal] = useState(false);
+  const [channelName, setChannelName] = useState("");
+  const [channelMembers, setChannelMembers] = useState([]);
+  const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
+  const [reactionPickerId, setReactionPickerId] = useState(null);
   const [hapticsEnabled, setHapticsEnabled] = useState(() => {
     const stored = localStorage.getItem("chat-haptics");
     return stored === null ? true : stored === "true";
   });
+
+  const baseUrl = useMemo(
+    () => import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000",
+    [],
+  );
+
+  const stickerOptions = useMemo(
+    () => [
+      "/stickers/star.svg",
+      "/stickers/heart.svg",
+      "/stickers/smile.svg",
+      "/stickers/rocket.svg",
+      "/stickers/wave.svg",
+      "/stickers/spark.svg",
+    ],
+    [],
+  );
+
+  const emojiOptions = useMemo(
+    () => [
+      "😀", "😁", "😂", "🤣", "😅", "😊", "😍", "😘", "😎", "🤩",
+      "🤝", "👍", "👏", "🙌", "🙏", "🔥", "✨", "🎉", "💯", "❤️",
+      "💙", "💚", "💛", "💜", "🧡", "🤍", "🤔", "😴", "🤯", "🥳",
+      "😇", "🤗", "😮", "😢", "😡", "👀", "👋", "🤖", "🐱", "🐶",
+    ],
+    [],
+  );
 
   // Theme State
   const [theme, setTheme] = useState(() => {
@@ -106,6 +143,7 @@ export default function ChatPage() {
   }, [activeConversation?._id]);
 
   const toggleTheme = () => {
+    setStickerPickerOpen(false);
     setTheme(prev => prev === "light" ? "dark" : "light");
   };
 
@@ -126,22 +164,7 @@ export default function ChatPage() {
     }, 420);
   };
 
-  const socket = useMemo(() => getSocket(), []);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-
-    (async () => {
-      const [contactsResponse, conversationResponse, allUsersResponse] = await Promise.all([
-        api.get("/users/contacts"),
-        api.get("/conversations"),
-        api.get("/users"),
-      ]);
-
-      setContacts(contactsResponse.data);
-      setConversations(conversationResponse.data);
+      appendMessage(response.data);
       setAllUsers(allUsersResponse.data);
 
       if (!socket.connected) socket.connect();
@@ -289,6 +312,20 @@ export default function ChatPage() {
       }
     });
 
+    socket.on("message-reaction-updated", (updatedMessage) => {
+      setMessages((current) =>
+        current.map((msg) => (msg._id === updatedMessage._id ? updatedMessage : msg)),
+      );
+
+      setConversations((current) =>
+        current.map((conv) =>
+          conv.lastMessage?._id === updatedMessage._id
+            ? { ...conv, lastMessage: updatedMessage }
+            : conv,
+        ),
+      );
+    });
+
     socket.on("message-deleted", ({ messageId, conversationId, body }) => {
       if (conversationId === activeConversation?._id) {
         setMessages((current) => current.map(msg => 
@@ -319,6 +356,7 @@ export default function ChatPage() {
       socket.off("online-users");
       socket.off("message-status-update");
       socket.off("message-deleted");
+      socket.off("message-reaction-updated");
     };
   }, [socket, user, activeConversation?._id, isMobileChatOpen]);
 
@@ -328,6 +366,7 @@ export default function ChatPage() {
       setCursor(null);
       setHasMore(false);
       setShowNewMessagePill(false);
+      setPinnedMessages([]);
       return;
     }
 
@@ -358,6 +397,16 @@ export default function ChatPage() {
       // Non-critical for primary chat experience.
     });
   }, [activeConversation, socket]);
+
+  useEffect(() => {
+    if (!activeConversation) {
+      return;
+    }
+
+    api.get(`/conversations/${activeConversation._id}/pins`)
+      .then((response) => setPinnedMessages(response.data))
+      .catch(() => setPinnedMessages([]));
+  }, [activeConversation?._id]);
 
   const loadMoreMessages = async () => {
     if (!cursor || !activeConversation || loadingMore) return;
@@ -457,6 +506,99 @@ export default function ChatPage() {
   const cancelRecording = () => {
     setAudioBlob(null);
     setAudioUrl(null);
+  };
+
+  const appendMessage = (newMessage) => {
+    setMessages((current) => {
+      if (current.some((m) => m._id === newMessage._id)) return current;
+      setTimeout(() => {
+        if (messageStreamRef.current) {
+          messageStreamRef.current.scrollTop = messageStreamRef.current.scrollHeight;
+        }
+      }, 50);
+      return [...current, newMessage];
+    });
+
+    setConversations((current) => {
+      const next = [...current];
+      const index = next.findIndex((c) => c._id === newMessage.conversationId);
+      if (index >= 0) {
+        const conversation = { ...next[index], lastMessage: newMessage };
+        next.splice(index, 1);
+        bumpConversation(conversation._id);
+        return [conversation, ...next];
+      }
+      return current;
+    });
+  };
+
+  const handleToggleReaction = async (messageId, emoji) => {
+    try {
+      const response = await api.post(`/messages/${messageId}/reactions`, { emoji });
+      const updatedMessage = response.data;
+      setMessages((current) => current.map((msg) => (msg._id === updatedMessage._id ? updatedMessage : msg)));
+      setReactionPickerId(null);
+    } catch (error) {
+      console.error("Failed to update reaction", error);
+    }
+  };
+
+  const handlePinMessage = async (messageId) => {
+    if (!activeConversation) return;
+    try {
+      const response = await api.post(`/conversations/${activeConversation._id}/pin`, { messageId });
+      setPinnedMessages(response.data);
+    } catch (error) {
+      console.error("Failed to pin message", error);
+    }
+  };
+
+  const handleUnpinMessage = async (messageId) => {
+    if (!activeConversation) return;
+    try {
+      const response = await api.delete(`/conversations/${activeConversation._id}/pin/${messageId}`);
+      setPinnedMessages(response.data);
+    } catch (error) {
+      console.error("Failed to unpin message", error);
+    }
+  };
+
+  const handleCreateChannel = async (event) => {
+    event.preventDefault();
+    if (!channelName.trim()) return;
+
+    try {
+      const response = await api.post("/conversations", {
+        type: "channel",
+        name: channelName.trim(),
+        members: channelMembers,
+      });
+      setConversations((current) => [response.data, ...current]);
+      setActiveConversation(response.data);
+      setChannelName("");
+      setChannelMembers([]);
+      setShowChannelModal(false);
+    } catch (error) {
+      console.error("Failed to create channel", error);
+    }
+  };
+
+  const sendSticker = async (stickerPath) => {
+    if (!activeConversation || sending) return;
+    setSending(true);
+    setStickerPickerOpen(false);
+
+    try {
+      const response = await api.post("/messages", {
+        sticker: stickerPath,
+        conversationId: activeConversation._id,
+      });
+      appendMessage(response.data);
+    } catch (error) {
+      console.error("Failed to send sticker", error);
+    } finally {
+      setSending(false);
+    }
   };
 
   const scrollToBottom = () => {
@@ -673,6 +815,16 @@ export default function ChatPage() {
     });
   }, [activeConversation, messages, user.id, user._id]);
 
+  const pinnedMessageIds = useMemo(
+    () => new Set(pinnedMessages.map((message) => message._id)),
+    [pinnedMessages],
+  );
+
+  const channelMemberOptions = useMemo(
+    () => (contacts.length ? contacts : allUsers),
+    [contacts, allUsers],
+  );
+
   if (!user) {
     return null;
   }
@@ -688,7 +840,7 @@ export default function ChatPage() {
           >
             {user.image ? (
               <img
-                src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${user.image}`}
+                src={resolveMediaUrl(user.image)}
                 alt="avatar"
                 className="avatar"
               />
@@ -719,7 +871,16 @@ export default function ChatPage() {
         </div>
 
         <section>
-          <h3>Conversations</h3>
+          <h3 className="section-header">
+            Conversations
+            <button
+              className="ghost"
+              type="button"
+              onClick={() => setShowChannelModal(true)}
+            >
+              New channel
+            </button>
+          </h3>
           <div className="list">
             {conversations.map((conversation) => {
               const isOtherUserOnline = conversation.isGroup
@@ -793,7 +954,7 @@ export default function ChatPage() {
                     <div className="list-item-content">
                       {targetUser.image ? (
                         <img
-                          src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${targetUser.image}`}
+                          src={resolveMediaUrl(targetUser.image)}
                           alt="avatar"
                           className="avatar sm"
                         />
@@ -836,7 +997,7 @@ export default function ChatPage() {
                     <div className="list-item-content">
                       {targetUser.image ? (
                         <img
-                          src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${targetUser.image}`}
+                          src={resolveMediaUrl(targetUser.image)}
                           alt="avatar"
                           className="avatar sm"
                         />
@@ -881,6 +1042,29 @@ export default function ChatPage() {
           </h3>
         </header>
 
+        {pinnedMessages.length > 0 && (
+          <div className="pinned-bar">
+            <div className="pinned-title">Pinned</div>
+            <div className="pinned-list">
+              {pinnedMessages.map((message) => (
+                <div key={message._id} className="pinned-item">
+                  <span className="pinned-text">
+                    {message.body || (message.sticker ? "Sticker" : message.image ? "Image" : message.audio ? "Audio" : "Message")}
+                  </span>
+                  <button
+                    type="button"
+                    className="pinned-action"
+                    onClick={() => handleUnpinMessage(message._id)}
+                    title="Unpin"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="message-stream" ref={messageStreamRef}>
           <div ref={observerTarget} className="observer-target" />
           {loadingMore && <div className="message-loading">Loading older messages...</div>}
@@ -899,20 +1083,40 @@ export default function ChatPage() {
               >
                 <div className="message-meta message-meta-row">
                   <div>{message.senderId.name}</div>
-                  {(message.senderId.id || message.senderId._id) === user.id && !message.isDeleted && (
-                    <button 
-                      onClick={() => {
-                        triggerHaptic(10);
-                        if (window.confirm("Delete this message for everyone?")) {
-                            api.delete(`/messages/${message._id}`).catch(err => console.error(err));
-                        }
-                      }}
-                      className="message-delete"
-                      title="Delete message"
-                    >
-                      🗑
-                    </button>
-                  )}
+                  <div className="message-meta-actions">
+                    {!message.isDeleted && (
+                      <button
+                        type="button"
+                        className={pinnedMessageIds.has(message._id) ? "message-pin active" : "message-pin"}
+                        onClick={() => {
+                          triggerHaptic(10);
+                          if (pinnedMessageIds.has(message._id)) {
+                            handleUnpinMessage(message._id);
+                          } else {
+                            handlePinMessage(message._id);
+                          }
+                        }}
+                        title={pinnedMessageIds.has(message._id) ? "Unpin" : "Pin"}
+                      >
+                        📌
+                      </button>
+                    )}
+                    {(message.senderId.id || message.senderId._id) === user.id && !message.isDeleted && (
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          triggerHaptic(10);
+                          if (window.confirm("Delete this message for everyone?")) {
+                              api.delete(`/messages/${message._id}`).catch(err => console.error(err));
+                          }
+                        }}
+                        className="message-delete"
+                        title="Delete message"
+                      >
+                        🗑
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {message.isDeleted ? (
                   <div className="message-deleted">
@@ -920,14 +1124,23 @@ export default function ChatPage() {
                   </div>
                 ) : (
                   <>
+                    {message.sticker && (
+                      <div className="message-media">
+                        <img
+                          src={resolveMediaUrl(message.sticker)}
+                          alt="sticker"
+                          className="message-sticker"
+                        />
+                      </div>
+                    )}
                     {message.image && (
                       <div className="message-media">
                         <img
-                          src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`}
+                            src={resolveMediaUrl(message.image)}
                           alt="attachment"
-                          onClick={() => {
+                            onClick={() => {
                             triggerHaptic(8);
-                            setZoomedImage(`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.image}`);
+                              setZoomedImage(resolveMediaUrl(message.image));
                           }}
                           className="message-image"
                         />
@@ -938,8 +1151,26 @@ export default function ChatPage() {
                       <div className="message-audio">
                         <audio
                           controls
-                          src={`${import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000"}${message.audio}`}
+                          src={resolveMediaUrl(message.audio)}
                         />
+                      </div>
+                    )}
+                    {message.reactions?.length > 0 && (
+                      <div className="message-reactions">
+                        {message.reactions.map((reaction) => {
+                          const hasReacted = reaction.userIds?.some((id) => id?.toString?.() === user.id || id === user.id);
+                          return (
+                            <button
+                              key={`${message._id}-${reaction.emoji}`}
+                              type="button"
+                              className={hasReacted ? "reaction-chip active" : "reaction-chip"}
+                              onClick={() => handleToggleReaction(message._id, reaction.emoji)}
+                            >
+                              <span>{reaction.emoji}</span>
+                              <small>{reaction.userIds.length}</small>
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                   </>
@@ -948,8 +1179,31 @@ export default function ChatPage() {
                   <small className="message-time-text">
                     {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </small>
+                  {!message.isDeleted && (
+                    <button
+                      type="button"
+                      className="reaction-button"
+                      onClick={() => setReactionPickerId((current) => (current === message._id ? null : message._id))}
+                      title="Add reaction"
+                    >
+                      😊
+                    </button>
+                  )}
                   {renderMessageStatus(message)}
                 </div>
+                {reactionPickerId === message._id && (
+                  <div className="reaction-picker">
+                    {emojiOptions.map((emoji) => (
+                      <button
+                        key={`${message._id}-${emoji}`}
+                        type="button"
+                        onClick={() => handleToggleReaction(message._id, emoji)}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </Fragment>
           ))}
@@ -967,6 +1221,20 @@ export default function ChatPage() {
         )}
 
         <form className="composer composer-stack" onSubmit={sendMessage}>
+          {stickerPickerOpen && (
+            <div className="sticker-panel">
+              {stickerOptions.map((sticker) => (
+                <button
+                  key={sticker}
+                  type="button"
+                  className="sticker-item"
+                  onClick={() => sendSticker(sticker)}
+                >
+                  <img src={resolveMediaUrl(sticker)} alt="sticker" />
+                </button>
+              ))}
+            </div>
+          )}
           {imageFile && (
             <div className="composer-preview">
               <img src={URL.createObjectURL(imageFile)} alt="preview" />
@@ -1012,6 +1280,18 @@ export default function ChatPage() {
             >
               📷
             </label>
+            <button
+              type="button"
+              className={`composer-icon ${(!activeConversation || sending) ? "disabled" : ""}`}
+              onClick={() => {
+                if (!activeConversation || sending) return;
+                triggerHaptic(8);
+                setStickerPickerOpen((current) => !current);
+              }}
+              title="Stickers"
+            >
+              ✨
+            </button>
             {!isRecording ? (
               <button
                 type="button"
@@ -1123,6 +1403,64 @@ export default function ChatPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showChannelModal && (
+        <div className="overlay" onClick={() => setShowChannelModal(false)}>
+          <form className="modal" onClick={(event) => event.stopPropagation()} onSubmit={handleCreateChannel}>
+            <h3 className="modal-title">Create Channel</h3>
+            <div className="modal-field">
+              <label>Channel name</label>
+              <input
+                className="modal-input"
+                value={channelName}
+                onChange={(e) => setChannelName(e.target.value)}
+                placeholder="Design updates"
+                required
+              />
+            </div>
+            <div className="modal-field">
+              <label>Add members</label>
+              <div className="member-list">
+                {channelMemberOptions.map((member) => {
+                  const id = member._id || member.id;
+                  const isSelected = channelMembers.includes(id);
+                  return (
+                    <label key={id} className="member-item">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {
+                          setChannelMembers((current) =>
+                            current.includes(id)
+                              ? current.filter((memberId) => memberId !== id)
+                              : [...current, id],
+                          );
+                        }}
+                      />
+                      <span>{member.name}</span>
+                    </label>
+                  );
+                })}
+                {channelMemberOptions.length === 0 && (
+                  <div className="list-empty">No contacts found.</div>
+                )}
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="modal-button"
+                onClick={() => setShowChannelModal(false)}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="modal-button primary">
+                Create channel
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

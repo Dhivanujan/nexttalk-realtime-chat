@@ -73,6 +73,8 @@ app.use("/api/upload", uploadRouter);
 
 // Serve uploaded files statically
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+// Serve built-in stickers
+app.use("/stickers", express.static(path.join(process.cwd(), "stickers")));
 
 const onlineUsers = new Map();
 
