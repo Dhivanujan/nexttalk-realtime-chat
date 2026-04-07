@@ -61,6 +61,13 @@ conversationRouter.post("/", requireAuth, async (req, res) => {
         pinnedMessageIds: [],
         channelOwnerId: new Types.ObjectId(req.userId),
         channelAdminIds: [new Types.ObjectId(req.userId)],
+        channelAudit: [
+          {
+            action: "channel_created",
+            actorId: new Types.ObjectId(req.userId),
+            meta: { name, isReadOnly: Boolean(isReadOnly) },
+          },
+        ],
       });
 
       const populated = await Conversation.findById(conversation._id)
@@ -240,6 +247,29 @@ conversationRouter.get("/:conversationId/channel-settings", requireAuth, async (
   }
 });
 
+conversationRouter.get("/:conversationId/channel-audit", requireAuth, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const conversation = await Conversation.findById(conversationId)
+      .populate("channelAudit.actorId", "name email image")
+      .populate("channelAudit.targetId", "name email image")
+      .select("type users channelAudit");
+
+    if (!conversation || conversation.type !== "channel") {
+      return res.status(404).json({ message: "Channel not found" });
+    }
+
+    if (!conversation.users.some((id) => id.toString() === req.userId)) {
+      return res.status(403).json({ message: "Not a member of this channel" });
+    }
+
+    const audit = (conversation.channelAudit || []).slice(-50).reverse();
+    res.json(audit);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch channel audit" });
+  }
+});
+
 conversationRouter.patch("/:conversationId/channel-settings", requireAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
@@ -255,6 +285,16 @@ conversationRouter.patch("/:conversationId/channel-settings", requireAuth, async
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ message: "Not authorized" });
     }
+
+    const previous = {
+      name: conversation.name,
+      description: conversation.description,
+      image: conversation.image,
+      isReadOnly: conversation.isReadOnly,
+      users: conversation.users.map((id) => id.toString()),
+      admins: conversation.channelAdminIds.map((id) => id.toString()),
+      ownerId: conversation.channelOwnerId?.toString(),
+    };
 
     if (name !== undefined) {
       conversation.name = name;
@@ -282,6 +322,9 @@ conversationRouter.patch("/:conversationId/channel-settings", requireAuth, async
 
       const ownerMatch = conversation.channelOwnerId?.toString();
       if (!uniqueMembers.some((id) => id.toString() === ownerMatch)) {
+        if (!isOwner) {
+          return res.status(403).json({ message: "Only the owner can remove the owner" });
+        }
         conversation.channelOwnerId = new Types.ObjectId(req.userId);
       }
 
@@ -302,6 +345,90 @@ conversationRouter.patch("/:conversationId/channel-settings", requireAuth, async
         conversation.users.push(new Types.ObjectId(ownerId));
       }
       conversation.channelOwnerId = new Types.ObjectId(ownerId);
+    }
+
+    const next = {
+      name: conversation.name,
+      description: conversation.description,
+      image: conversation.image,
+      isReadOnly: conversation.isReadOnly,
+      users: conversation.users.map((id) => id.toString()),
+      admins: conversation.channelAdminIds.map((id) => id.toString()),
+      ownerId: conversation.channelOwnerId?.toString(),
+    };
+
+    const auditEntries = [];
+    if (previous.name !== next.name) {
+      auditEntries.push({
+        action: "name_updated",
+        actorId: new Types.ObjectId(req.userId),
+        meta: { from: previous.name, to: next.name },
+      });
+    }
+    if (previous.description !== next.description) {
+      auditEntries.push({
+        action: "description_updated",
+        actorId: new Types.ObjectId(req.userId),
+        meta: { from: previous.description, to: next.description },
+      });
+    }
+    if (previous.image !== next.image) {
+      auditEntries.push({
+        action: "avatar_updated",
+        actorId: new Types.ObjectId(req.userId),
+      });
+    }
+    if (previous.isReadOnly !== next.isReadOnly) {
+      auditEntries.push({
+        action: next.isReadOnly ? "read_only_enabled" : "read_only_disabled",
+        actorId: new Types.ObjectId(req.userId),
+      });
+    }
+
+    const removedMembers = previous.users.filter((id) => !next.users.includes(id));
+    const addedMembers = next.users.filter((id) => !previous.users.includes(id));
+    removedMembers.forEach((memberId) => {
+      auditEntries.push({
+        action: "member_removed",
+        actorId: new Types.ObjectId(req.userId),
+        targetId: new Types.ObjectId(memberId),
+      });
+    });
+    addedMembers.forEach((memberId) => {
+      auditEntries.push({
+        action: "member_added",
+        actorId: new Types.ObjectId(req.userId),
+        targetId: new Types.ObjectId(memberId),
+      });
+    });
+
+    const removedAdmins = previous.admins.filter((id) => !next.admins.includes(id));
+    const addedAdmins = next.admins.filter((id) => !previous.admins.includes(id));
+    removedAdmins.forEach((adminId) => {
+      auditEntries.push({
+        action: "admin_removed",
+        actorId: new Types.ObjectId(req.userId),
+        targetId: new Types.ObjectId(adminId),
+      });
+    });
+    addedAdmins.forEach((adminId) => {
+      auditEntries.push({
+        action: "admin_added",
+        actorId: new Types.ObjectId(req.userId),
+        targetId: new Types.ObjectId(adminId),
+      });
+    });
+
+    if (previous.ownerId !== next.ownerId && next.ownerId) {
+      auditEntries.push({
+        action: "owner_transferred",
+        actorId: new Types.ObjectId(req.userId),
+        targetId: new Types.ObjectId(next.ownerId),
+      });
+    }
+
+    if (auditEntries.length > 0) {
+      conversation.channelAudit.push(...auditEntries);
     }
 
     await conversation.save();

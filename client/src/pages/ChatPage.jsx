@@ -84,6 +84,11 @@ export default function ChatPage() {
   const [channelSettingsImageFile, setChannelSettingsImageFile] = useState(null);
   const [channelSettingsReadOnly, setChannelSettingsReadOnly] = useState(false);
   const [channelSettingsOwnerId, setChannelSettingsOwnerId] = useState("");
+  const [channelAuditLog, setChannelAuditLog] = useState([]);
+  const [showAvatarCropper, setShowAvatarCropper] = useState(false);
+  const [avatarCropTarget, setAvatarCropTarget] = useState(null);
+  const [avatarCropImageUrl, setAvatarCropImageUrl] = useState("");
+  const [avatarCropZoom, setAvatarCropZoom] = useState(1);
   const [hapticsEnabled, setHapticsEnabled] = useState(() => {
     const stored = localStorage.getItem("chat-haptics");
     return stored === null ? true : stored === "true";
@@ -93,6 +98,12 @@ export default function ChatPage() {
     () => import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000",
     [],
   );
+
+  const resolveMediaUrl = (path) => {
+    if (!path) return "";
+    if (path.startsWith("http") || path.startsWith("blob:") || path.startsWith("data:")) return path;
+    return `${baseUrl}${path}`;
+  };
 
   const stickerOptions = useMemo(
     () => [
@@ -237,6 +248,8 @@ export default function ChatPage() {
     socket.on("receive-message", (message) => {
       const shouldAutoScroll = isAtBottomRef.current;
       if (message.conversationId === activeConversation?._id) {
+        setStickerPickerOpen(false);
+        setReactionPickerId(null);
         setMessages((current) => {
           // Prevent duplicates if already there
           if (current.some(m => m._id === message._id)) return current;
@@ -418,6 +431,7 @@ export default function ChatPage() {
       setChannelSettingsImageFile(null);
       setChannelSettingsReadOnly(false);
       setChannelSettingsOwnerId("");
+      setChannelAuditLog([]);
       return;
     }
 
@@ -447,6 +461,16 @@ export default function ChatPage() {
         setChannelSettingsOwnerId(activeConversation.channelOwnerId?._id || activeConversation.channelOwnerId || "");
       });
   }, [activeConversation, isChannel]);
+
+  useEffect(() => {
+    if (!showChannelSettings || !isChannel || !activeConversation) {
+      return;
+    }
+
+    api.get(`/conversations/${activeConversation._id}/channel-audit`)
+      .then((response) => setChannelAuditLog(response.data))
+      .catch(() => setChannelAuditLog([]));
+  }, [showChannelSettings, isChannel, activeConversation]);
 
   useEffect(() => {
     if (!activeConversation) {
@@ -678,6 +702,54 @@ export default function ChatPage() {
     } catch (error) {
       console.error("Failed to update channel settings", error);
     }
+  };
+
+  const openAvatarCropper = (file, target) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAvatarCropImageUrl(reader.result);
+      setAvatarCropZoom(1);
+      setAvatarCropTarget(target);
+      setShowAvatarCropper(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const applyAvatarCrop = async () => {
+    if (!avatarCropImageUrl) return;
+
+    const image = new Image();
+    image.src = avatarCropImageUrl;
+    await image.decode();
+
+    const size = 256;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const scale = avatarCropZoom;
+    const scaledWidth = image.width * scale;
+    const scaledHeight = image.height * scale;
+    const dx = (size - scaledWidth) / 2;
+    const dy = (size - scaledHeight) / 2;
+
+    ctx.drawImage(image, dx, dy, scaledWidth, scaledHeight);
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) return;
+
+    const croppedFile = new File([blob], "channel-avatar.png", { type: "image/png" });
+    if (avatarCropTarget === "create") {
+      setChannelImageFile(croppedFile);
+    } else {
+      setChannelSettingsImageFile(croppedFile);
+      setChannelSettingsImage(URL.createObjectURL(blob));
+    }
+
+    setShowAvatarCropper(false);
   };
 
   const sendSticker = async (stickerPath) => {
@@ -1577,7 +1649,14 @@ export default function ChatPage() {
             </div>
             <div className="modal-field">
               <label>Channel avatar</label>
-              <input type="file" accept="image/*" onChange={(e) => setChannelImageFile(e.target.files?.[0] || null)} />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => openAvatarCropper(e.target.files?.[0] || null, "create")}
+              />
+              {channelImageFile && (
+                <span className="helper-text">Avatar ready</span>
+              )}
             </div>
             <div className="modal-field toggle-row">
               <div>
@@ -1663,7 +1742,7 @@ export default function ChatPage() {
               <input
                 type="file"
                 accept="image/*"
-                onChange={(event) => setChannelSettingsImageFile(event.target.files?.[0] || null)}
+                onChange={(event) => openAvatarCropper(event.target.files?.[0] || null, "settings")}
               />
               {channelSettingsImage && (
                 <img src={resolveMediaUrl(channelSettingsImage)} alt="channel" className="channel-avatar-preview" />
@@ -1742,9 +1821,43 @@ export default function ChatPage() {
                         />
                         <span>Admin</span>
                       </label>
+                      {!isOwner && isMember && (isChannelOwner || isChannelAdmin) && (
+                        <button
+                          type="button"
+                          className="member-remove"
+                          onClick={() => {
+                            if (window.confirm(`Remove ${member.name} from this channel?`)) {
+                              setChannelSettingsMembers((current) => current.filter((memberId) => memberId !== id));
+                              setChannelSettingsAdmins((current) => current.filter((adminId) => adminId !== id));
+                            }
+                          }}
+                        >
+                          Remove
+                        </button>
+                      )}
                     </div>
                   );
                 })}
+              </div>
+            </div>
+            <div className="modal-field">
+              <label>Audit log</label>
+              <div className="audit-list">
+                {channelAuditLog.map((entry) => (
+                  <div key={`${entry._id || entry.createdAt}`} className="audit-item">
+                    <span className="audit-action">{entry.action.replace(/_/g, " ")}</span>
+                    <span className="audit-meta">
+                      {entry.actorId?.name || "System"}
+                      {entry.targetId?.name ? ` → ${entry.targetId.name}` : ""}
+                    </span>
+                    <span className="audit-time">
+                      {new Date(entry.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+                {channelAuditLog.length === 0 && (
+                  <div className="list-empty">No recent changes.</div>
+                )}
               </div>
             </div>
             <div className="modal-actions">
@@ -1760,6 +1873,40 @@ export default function ChatPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {showAvatarCropper && (
+        <div className="overlay" onClick={() => setShowAvatarCropper(false)}>
+          <div className="modal avatar-cropper" onClick={(event) => event.stopPropagation()}>
+            <h3 className="modal-title">Crop Avatar</h3>
+            <div className="avatar-crop-preview">
+              <img
+                src={avatarCropImageUrl}
+                alt="crop"
+                style={{ transform: `scale(${avatarCropZoom})` }}
+              />
+            </div>
+            <label className="modal-field">
+              <span>Zoom</span>
+              <input
+                type="range"
+                min="1"
+                max="2"
+                step="0.05"
+                value={avatarCropZoom}
+                onChange={(event) => setAvatarCropZoom(Number(event.target.value))}
+              />
+            </label>
+            <div className="modal-actions">
+              <button type="button" className="modal-button" onClick={() => setShowAvatarCropper(false)}>
+                Cancel
+              </button>
+              <button type="button" className="modal-button primary" onClick={applyAvatarCrop}>
+                Use avatar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

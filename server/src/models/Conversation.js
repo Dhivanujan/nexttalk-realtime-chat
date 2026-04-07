@@ -15,6 +15,15 @@ const ConversationSchema = new Schema(
     pinnedMessageIds: [{ type: Schema.Types.ObjectId, ref: "Message" }],
     channelOwnerId: { type: Schema.Types.ObjectId, ref: "User" },
     channelAdminIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    channelAudit: [
+      {
+        action: { type: String, required: true },
+        actorId: { type: Schema.Types.ObjectId, ref: "User" },
+        targetId: { type: Schema.Types.ObjectId, ref: "User" },
+        meta: { type: Schema.Types.Mixed },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true },
 );
