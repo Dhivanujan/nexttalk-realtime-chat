@@ -18,6 +18,8 @@ PORT=5000
 MONGODB_URI=mongodb://127.0.0.1:27017/chat-app
 JWT_SECRET=your-jwt-secret-here
 CLIENT_URL=http://localhost:5173
+CHANNEL_AUDIT_RETENTION_DAYS=90
+CHANNEL_AUDIT_MAX_ENTRIES=500
 ```
 
 ### Client (Frontend)
