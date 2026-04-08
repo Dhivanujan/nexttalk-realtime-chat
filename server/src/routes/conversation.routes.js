@@ -442,6 +442,18 @@ conversationRouter.patch("/:conversationId/channel-settings", requireAuth, async
 
     if (auditEntries.length > 0) {
       conversation.channelAudit.push(...auditEntries);
+
+      const retentionDays = 90;
+      const maxEntries = 500;
+      const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+
+      conversation.channelAudit = conversation.channelAudit.filter(
+        (entry) => entry.createdAt && entry.createdAt >= cutoff,
+      );
+
+      if (conversation.channelAudit.length > maxEntries) {
+        conversation.channelAudit = conversation.channelAudit.slice(-maxEntries);
+      }
     }
 
     await conversation.save();

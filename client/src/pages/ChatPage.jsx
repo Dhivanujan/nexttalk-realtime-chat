@@ -90,6 +90,9 @@ export default function ChatPage() {
   const [channelAuditLoading, setChannelAuditLoading] = useState(false);
   const [pendingOwnerTransferId, setPendingOwnerTransferId] = useState("");
   const [showOwnerTransferModal, setShowOwnerTransferModal] = useState(false);
+  const [pendingMemberRemoval, setPendingMemberRemoval] = useState(null);
+  const [removalConfirmText, setRemovalConfirmText] = useState("");
+  const [auditFilter, setAuditFilter] = useState("all");
   const [showAvatarCropper, setShowAvatarCropper] = useState(false);
   const [avatarCropTarget, setAvatarCropTarget] = useState(null);
   const [avatarCropImageUrl, setAvatarCropImageUrl] = useState("");
@@ -498,6 +501,18 @@ export default function ChatPage() {
         return `${actor} updated channel settings.`;
     }
   };
+
+  const filteredAuditLog = useMemo(() => {
+    if (auditFilter === "roles") {
+      const roleActions = new Set([
+        "admin_added",
+        "admin_removed",
+        "owner_transferred",
+      ]);
+      return channelAuditLog.filter((entry) => roleActions.has(entry.action));
+    }
+    return channelAuditLog;
+  }, [auditFilter, channelAuditLog]);
 
   const loadChannelAudit = async (reset = false) => {
     if (!activeConversation) return;
@@ -1914,10 +1929,8 @@ export default function ChatPage() {
                           type="button"
                           className="member-remove"
                           onClick={() => {
-                            if (window.confirm(`Remove ${member.name} from this channel?`)) {
-                              setChannelSettingsMembers((current) => current.filter((memberId) => memberId !== id));
-                              setChannelSettingsAdmins((current) => current.filter((adminId) => adminId !== id));
-                            }
+                            setPendingMemberRemoval({ id, name: member.name });
+                            setRemovalConfirmText("");
                           }}
                         >
                           Remove
@@ -1930,8 +1943,24 @@ export default function ChatPage() {
             </div>
             <div className="modal-field">
               <label>Audit log</label>
+              <div className="audit-filter">
+                <button
+                  type="button"
+                  className={auditFilter === "all" ? "filter-chip active" : "filter-chip"}
+                  onClick={() => setAuditFilter("all")}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  className={auditFilter === "roles" ? "filter-chip active" : "filter-chip"}
+                  onClick={() => setAuditFilter("roles")}
+                >
+                  Role changes
+                </button>
+              </div>
               <div className="audit-list">
-                {channelAuditLog.map((entry) => (
+                {filteredAuditLog.map((entry) => (
                   <div key={`${entry._id || entry.createdAt}`} className="audit-item">
                     <span className="audit-action">{formatAuditEntry(entry)}</span>
                     <span className="audit-time">
@@ -1939,7 +1968,7 @@ export default function ChatPage() {
                     </span>
                   </div>
                 ))}
-                {channelAuditLog.length === 0 && (
+                {filteredAuditLog.length === 0 && (
                   <div className="list-empty">No recent changes.</div>
                 )}
               </div>
@@ -1998,6 +2027,49 @@ export default function ChatPage() {
                 onClick={confirmOwnerTransfer}
               >
                 Transfer ownership
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingMemberRemoval && (
+        <div className="overlay" onClick={() => setPendingMemberRemoval(null)}>
+          <div className="modal warning" onClick={(event) => event.stopPropagation()}>
+            <h3 className="modal-title">Remove member?</h3>
+            <p className="warning-text">
+              You are about to remove {pendingMemberRemoval.name} from this channel. They will lose access immediately.
+              Type REMOVE to confirm.
+            </p>
+            <input
+              className="modal-input"
+              value={removalConfirmText}
+              onChange={(event) => setRemovalConfirmText(event.target.value)}
+              placeholder="Type REMOVE"
+            />
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="modal-button"
+                onClick={() => setPendingMemberRemoval(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="modal-button danger"
+                disabled={removalConfirmText !== "REMOVE"}
+                onClick={() => {
+                  setChannelSettingsMembers((current) =>
+                    current.filter((memberId) => memberId !== pendingMemberRemoval.id),
+                  );
+                  setChannelSettingsAdmins((current) =>
+                    current.filter((adminId) => adminId !== pendingMemberRemoval.id),
+                  );
+                  setPendingMemberRemoval(null);
+                }}
+              >
+                Remove member
               </button>
             </div>
           </div>
