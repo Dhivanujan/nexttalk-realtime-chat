@@ -92,7 +92,10 @@ export default function ChatPage() {
   const [showOwnerTransferModal, setShowOwnerTransferModal] = useState(false);
   const [pendingMemberRemoval, setPendingMemberRemoval] = useState(null);
   const [removalConfirmText, setRemovalConfirmText] = useState("");
-  const [auditFilter, setAuditFilter] = useState("all");
+  const [auditFilter, setAuditFilter] = useState(() => {
+    return localStorage.getItem("channel-audit-filter") || "all";
+  });
+  const [ownerTransferConfirmText, setOwnerTransferConfirmText] = useState("");
   const [showAvatarCropper, setShowAvatarCropper] = useState(false);
   const [avatarCropTarget, setAvatarCropTarget] = useState(null);
   const [avatarCropImageUrl, setAvatarCropImageUrl] = useState("");
@@ -183,6 +186,10 @@ export default function ChatPage() {
       navigator.vibrate(pattern);
     }
   };
+
+  useEffect(() => {
+    localStorage.setItem("channel-audit-filter", auditFilter);
+  }, [auditFilter]);
 
   useEffect(() => {
     localStorage.setItem("chat-haptics", String(hapticsEnabled));
@@ -800,6 +807,7 @@ export default function ChatPage() {
     setChannelSettingsOwnerId(pendingOwnerTransferId);
     setShowOwnerTransferModal(false);
     setPendingOwnerTransferId("");
+    setOwnerTransferConfirmText("");
   };
 
   const resolveMemberName = (memberId) => {
@@ -2003,13 +2011,21 @@ export default function ChatPage() {
         <div className="overlay" onClick={() => {
           setShowOwnerTransferModal(false);
           setPendingOwnerTransferId("");
+          setOwnerTransferConfirmText("");
         }}>
           <div className="modal warning" onClick={(event) => event.stopPropagation()}>
             <h3 className="modal-title">Transfer ownership?</h3>
             <p className="warning-text">
               You are about to transfer ownership to {resolveMemberName(pendingOwnerTransferId)}.
               You will lose owner privileges immediately. This action cannot be undone.
+              Type TRANSFER to confirm.
             </p>
+            <input
+              className="modal-input"
+              value={ownerTransferConfirmText}
+              onChange={(event) => setOwnerTransferConfirmText(event.target.value)}
+              placeholder="Type TRANSFER"
+            />
             <div className="modal-actions">
               <button
                 type="button"
@@ -2017,6 +2033,7 @@ export default function ChatPage() {
                 onClick={() => {
                   setShowOwnerTransferModal(false);
                   setPendingOwnerTransferId("");
+                  setOwnerTransferConfirmText("");
                 }}
               >
                 Cancel
@@ -2024,6 +2041,7 @@ export default function ChatPage() {
               <button
                 type="button"
                 className="modal-button danger"
+                disabled={ownerTransferConfirmText !== "TRANSFER"}
                 onClick={confirmOwnerTransfer}
               >
                 Transfer ownership

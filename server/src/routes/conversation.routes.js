@@ -443,8 +443,8 @@ conversationRouter.patch("/:conversationId/channel-settings", requireAuth, async
     if (auditEntries.length > 0) {
       conversation.channelAudit.push(...auditEntries);
 
-      const retentionDays = 90;
-      const maxEntries = 500;
+      const retentionDays = Number(process.env.CHANNEL_AUDIT_RETENTION_DAYS || 90);
+      const maxEntries = Number(process.env.CHANNEL_AUDIT_MAX_ENTRIES || 500);
       const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
 
       conversation.channelAudit = conversation.channelAudit.filter(
