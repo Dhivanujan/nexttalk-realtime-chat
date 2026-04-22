@@ -17,11 +17,27 @@ userRouter.post("/push/subscribe", requireAuth, async (req, res) => {
 
 userRouter.put("/profile", requireAuth, async (req, res) => {
   try {
-    const { name, bio, image } = req.body;
+    const { name, bio, image, email, phone } = req.body;
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (bio !== undefined) updateData.bio = bio;
     if (image !== undefined) updateData.image = image;
+    if (email !== undefined) updateData.email = email.toLowerCase();
+    if (phone !== undefined) updateData.phone = phone.replace(/\s+/g, "").trim();
+
+    if (updateData.email) {
+      const emailOwner = await User.findOne({ email: updateData.email, _id: { $ne: req.userId } });
+      if (emailOwner) {
+        return res.status(409).json({ message: "Email already in use" });
+      }
+    }
+
+    if (updateData.phone) {
+      const phoneOwner = await User.findOne({ phone: updateData.phone, _id: { $ne: req.userId } });
+      if (phoneOwner) {
+        return res.status(409).json({ message: "Phone already in use" });
+      }
+    }
 
     const user = await User.findByIdAndUpdate(req.userId, updateData, { new: true }).select("-password");
     res.json(user);
@@ -40,9 +56,9 @@ userRouter.get("/search", requireAuth, async (req, res) => {
     const users = await User.find({
       $and: [
         { _id: { $ne: req.userId } },
-        { $or: [{ name: { $regex: regex } }, { email: { $regex: regex } }] }
+        { $or: [{ name: { $regex: regex } }, { email: { $regex: regex } }, { phone: { $regex: regex } }] }
       ]
-    }).select("name email image bio isOnline lastSeen");
+    }).select("name email phone image bio isOnline lastSeen");
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: "Failed to search users" });
@@ -51,14 +67,18 @@ userRouter.get("/search", requireAuth, async (req, res) => {
 
 userRouter.post("/contacts", requireAuth, async (req, res) => {
   try {
-    const { contactId, email } = req.body;
+    const { contactId, email, phone } = req.body;
     
     let targetUserId = contactId;
 
-    if (email) {
-      const targetUser = await User.findOne({ email: email.toLowerCase() });
+    if (email || phone) {
+      const query = {};
+      if (email) query.email = email.toLowerCase();
+      if (phone) query.phone = phone.replace(/\s+/g, "").trim();
+
+      const targetUser = await User.findOne(query);
       if (!targetUser) {
-        return res.status(404).json({ message: "User with this email not found" });
+        return res.status(404).json({ message: "User not found" });
       }
       if (targetUser._id.toString() === req.userId) {
         return res.status(400).json({ message: "You cannot add yourself" });
@@ -93,7 +113,7 @@ userRouter.delete("/contacts/:contactId", requireAuth, async (req, res) => {
 
 userRouter.get("/contacts", requireAuth, async (req, res) => {
   try {
-    const user = await User.findById(req.userId).populate("contacts", "name email image bio isOnline lastSeen");
+    const user = await User.findById(req.userId).populate("contacts", "name email phone image bio isOnline lastSeen");
     res.json(user.contacts || []);
   } catch (error) {
     console.error(error);
@@ -103,7 +123,7 @@ userRouter.get("/contacts", requireAuth, async (req, res) => {
 
 userRouter.get("/", requireAuth, async (req, res) => {
   try {
-    const users = await User.find({ _id: { $ne: req.userId } }).select("name email image bio isOnline lastSeen");
+    const users = await User.find({ _id: { $ne: req.userId } }).select("name email phone image bio isOnline lastSeen");
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch users" });

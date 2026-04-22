@@ -29,6 +29,7 @@
 ## Messages
 - GET /api/messages/:conversationId?limit=&cursor=
 - POST /api/messages
+- POST /api/messages/:messageId/delivered
 - POST /api/messages/:messageId/reactions
 - DELETE /api/messages/:messageId
 

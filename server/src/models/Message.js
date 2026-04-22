@@ -5,6 +5,7 @@ const MessageSchema = new Schema(
   {
     body: { type: String },
     image: { type: String },
+    video: { type: String },
     audio: { type: String },
     sticker: { type: String },
     conversationId: { type: Schema.Types.ObjectId, ref: "Conversation", required: true },

@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -16,7 +16,7 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      await login(email, password);
+      await login(identifier, password);
       navigate("/chat");
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to login");
@@ -31,10 +31,10 @@ export default function LoginPage() {
         <h1>Welcome Back</h1>
         <p>Sign in to continue chatting in real-time.</p>
         <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          type="text"
+          placeholder="Email or phone"
+          value={identifier}
+          onChange={(event) => setIdentifier(event.target.value)}
           required
         />
         <input

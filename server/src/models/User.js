@@ -4,7 +4,8 @@ const { Schema, model } = pkg;
 const UserSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true },
+    email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
+    phone: { type: String, unique: true, sparse: true, trim: true },
     password: { type: String },
     image: { type: String, default: "" },
     bio: { type: String, default: "Hey there! I am using NextTalk." },

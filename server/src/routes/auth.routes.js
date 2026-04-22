@@ -5,23 +5,38 @@ import { User } from "../models/User.js";
 
 const authRouter = Router();
 
+const normalizeEmail = (value) => (value ? value.trim().toLowerCase() : "");
+const normalizePhone = (value) => (value ? value.replace(/\s+/g, "").trim() : "");
+
 authRouter.post("/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, phone, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedPhone = normalizePhone(phone);
 
-    if (!name || !email || !password) {
-      res.status(400).json({ message: "Missing required fields" });
+    if (!name || !password || (!normalizedEmail && !normalizedPhone)) {
+      res.status(400).json({ message: "Name, password, and email or phone are required" });
       return;
     }
 
-    const existing = await User.findOne({ email });
+    const existing = await User.findOne({
+      $or: [
+        ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
+        ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
+      ],
+    });
     if (existing) {
-      res.status(409).json({ message: "Email already in use" });
+      res.status(409).json({ message: "Email or phone already in use" });
       return;
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email, password: hashedPassword });
+    const user = await User.create({
+      name,
+      email: normalizedEmail || undefined,
+      phone: normalizedPhone || undefined,
+      password: hashedPassword,
+    });
 
     const token = jwt.sign({ userId: user._id.toString() }, process.env.JWT_SECRET || "", {
       expiresIn: "7d",
@@ -39,6 +54,7 @@ authRouter.post("/register", async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         image: user.image,
         bio: user.bio,
       },
@@ -50,14 +66,21 @@ authRouter.post("/register", async (req, res) => {
 
 authRouter.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, phone, identifier, password } = req.body;
+    const normalizedEmail = normalizeEmail(email || identifier);
+    const normalizedPhone = normalizePhone(phone || identifier);
 
-    if (!email || !password) {
-      res.status(400).json({ message: "Email and password are required" });
+    if (!password || (!normalizedEmail && !normalizedPhone)) {
+      res.status(400).json({ message: "Email or phone and password are required" });
       return;
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({
+      $or: [
+        ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
+        ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
+      ],
+    });
     if (!user || !user.password) {
       res.status(401).json({ message: "Invalid credentials" });
       return;
@@ -85,6 +108,7 @@ authRouter.post("/login", async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         image: user.image,
         bio: user.bio,
       },
@@ -121,6 +145,7 @@ authRouter.get("/me", async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         image: user.image,
         bio: user.bio,
       }

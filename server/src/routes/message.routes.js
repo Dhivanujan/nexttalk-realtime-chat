@@ -43,15 +43,15 @@ messageRouter.get("/:conversationId", requireAuth, async (req, res) => {
 
 messageRouter.post("/", requireAuth, async (req, res) => {
   try {
-    const { message, image, audio, sticker, conversationId } = req.body;
+    const { message, image, video, audio, sticker, conversationId } = req.body;
 
     if (!conversationId) {
       res.status(400).json({ message: "conversationId is required" });
       return;
     }
 
-    if (!message && !image && !audio && !sticker) {
-      res.status(400).json({ message: "message, image, audio, or sticker is required" });
+    if (!message && !image && !video && !audio && !sticker) {
+      res.status(400).json({ message: "message, image, video, audio, or sticker is required" });
       return;
     }
 
@@ -71,6 +71,7 @@ messageRouter.post("/", requireAuth, async (req, res) => {
     const newMessage = await Message.create({
       body: message,
       image,
+      video,
       audio,
       sticker,
       conversationId: new Types.ObjectId(conversationId),
@@ -96,7 +97,7 @@ messageRouter.post("/", requireAuth, async (req, res) => {
       const senderName = populatedMessage.senderId.name;
       const notificationPayload = {
         title: `New message from ${senderName}`,
-        body: message || (audio ? "🎤 Audio message" : sticker ? "✨ Sticker" : "📷 Image"),
+        body: message || (audio ? "🎤 Audio message" : video ? "🎬 Video" : sticker ? "✨ Sticker" : "📷 Image"),
         icon: populatedMessage.senderId.image || "/favicon.ico",
         url: `/?conversation=${conversationId}`
       };
@@ -158,6 +159,39 @@ messageRouter.post("/:messageId/reactions", requireAuth, async (req, res) => {
   }
 });
 
+messageRouter.post("/:messageId/delivered", requireAuth, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    if (message.senderId.toString() === req.userId) {
+      return res.status(400).json({ message: "Cannot mark your own message as delivered" });
+    }
+
+    if (message.status !== "read") {
+      message.status = "delivered";
+      await message.save();
+    }
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(message.conversationId.toString()).emit("message-status-update", {
+        messageId,
+        status: message.status,
+        conversationId: message.conversationId,
+      });
+    }
+
+    res.json({ messageId, status: message.status });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update delivery status" });
+  }
+});
+
 messageRouter.delete("/:messageId", requireAuth, async (req, res) => {
   try {
     const { messageId } = req.params;
@@ -174,6 +208,7 @@ messageRouter.delete("/:messageId", requireAuth, async (req, res) => {
     message.isDeleted = true;
     message.body = "This message was deleted";
     message.image = undefined;
+    message.video = undefined;
     message.audio = undefined;
     message.sticker = undefined;
     await message.save();

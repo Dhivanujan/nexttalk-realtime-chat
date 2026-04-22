@@ -6,7 +6,7 @@ export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -17,7 +17,7 @@ export default function RegisterPage() {
     setSubmitting(true);
 
     try {
-      await register(name, email, password);
+      await register(name, identifier, password);
       navigate("/chat");
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to register");
@@ -39,10 +39,10 @@ export default function RegisterPage() {
           required
         />
         <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          type="text"
+          placeholder="Email or phone"
+          value={identifier}
+          onChange={(event) => setIdentifier(event.target.value)}
           required
         />
         <input

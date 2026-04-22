@@ -26,14 +26,19 @@ export function AuthProvider({ children }) {
     fetchUser();
   }, []);
 
-  async function login(email, password) {
-    const response = await api.post("/auth/login", { email, password });
+  async function login(identifier, password) {
+    const response = await api.post("/auth/login", { identifier, password });
     setUser(response.data.user);
   }
 
-  async function register(name, email, password) {
-    await api.post("/auth/register", { name, email, password });
-    await login(email, password); // log them in automatically
+  async function register(name, identifier, password) {
+    const payload = {
+      name,
+      password,
+      ...(identifier.includes("@") ? { email: identifier } : { phone: identifier }),
+    };
+    await api.post("/auth/register", payload);
+    await login(identifier, password); // log them in automatically
   }
 
   async function logout() {

@@ -3,6 +3,7 @@
 ## User
 - name: String
 - email: String (unique)
+- phone: String (unique)
 - password: String (bcrypt)
 - image: String
 - bio: String
@@ -29,6 +30,7 @@
 ## Message
 - body: String
 - image: String
+- video: String
 - audio: String
 - sticker: String
 - conversationId: Conversation

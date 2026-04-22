@@ -28,6 +28,7 @@ export default function ChatPage() {
   const [onlineUserIds, setOnlineUserIds] = useState(new Set());
   const [draft, setDraft] = useState("");
   const [imageFile, setImageFile] = useState(null);
+  const [videoFile, setVideoFile] = useState(null);
   const [sending, setSending] = useState(false);
   const [typingUsers, setTypingUsers] = useState(new Set());
   const [isTyping, setIsTyping] = useState(false);
@@ -51,7 +52,7 @@ export default function ChatPage() {
   // Search state
   const [contactSearch, setContactSearch] = useState("");
   const [conversationSearch, setConversationSearch] = useState("");
-  const [newContactEmail, setNewContactEmail] = useState("");
+  const [newContactQuery, setNewContactQuery] = useState("");
   const [addingContact, setAddingContact] = useState(false);
   const [addContactError, setAddContactError] = useState("");
   const [addContactSuccess, setAddContactSuccess] = useState("");
@@ -208,6 +209,12 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
     const messageStream = messageStreamRef.current;
     if (!messageStream) return;
 
@@ -317,6 +324,18 @@ export default function ChatPage() {
       const shouldAutoScroll = isAtBottomRef.current;
       if (message.senderId?._id !== user.id && message.senderId?.id !== user.id) {
         playNotificationSound();
+        if (document.visibilityState !== "visible" && "Notification" in window && Notification.permission === "granted") {
+          const senderName = message.senderId?.name || "New message";
+          const preview = message.body
+            || (message.audio ? "Audio message" : message.video ? "Video" : message.image ? "Image" : message.sticker ? "Sticker" : "New message");
+          const notification = new Notification(senderName, {
+            body: preview,
+            icon: message.senderId?.image ? resolveMediaUrl(message.senderId.image) : undefined,
+          });
+          notification.onclick = () => {
+            window.focus();
+          };
+        }
       }
       if (message.conversationId === activeConversation?._id) {
         setStickerPickerOpen(false);
@@ -340,9 +359,19 @@ export default function ChatPage() {
         
         // Notify sender it was delivered (or read if window is active)
         if (message.senderId._id !== user.id) {
-           api.post(`/conversations/${message.conversationId}/seen`);
-           socket.emit("message-seen", { messageId: message._id, conversationId: message.conversationId, userId: user.id });
+          if (document.hasFocus()) {
+            api.post(`/conversations/${message.conversationId}/seen`).catch(() => {});
+            socket.emit("message-seen", { messageId: message._id, conversationId: message.conversationId, userId: user.id });
+          } else {
+            api.post(`/messages/${message._id}/delivered`).catch(() => {});
+            socket.emit("message-delivered", { messageId: message._id, conversationId: message.conversationId, userId: user.id });
+          }
         }
+      }
+
+      if (message.conversationId !== activeConversation?._id && message.senderId._id !== user.id) {
+        api.post(`/messages/${message._id}/delivered`).catch(() => {});
+        socket.emit("message-delivered", { messageId: message._id, conversationId: message.conversationId, userId: user.id });
       }
 
       setConversations((current) => {
@@ -424,7 +453,7 @@ export default function ChatPage() {
       if (conversationId === activeConversation?._id) {
         setMessages((current) => current.map(msg => 
           msg._id === messageId 
-            ? { ...msg, isDeleted: true, body, image: undefined, audio: undefined } 
+            ? { ...msg, isDeleted: true, body, image: undefined, video: undefined, audio: undefined } 
             : msg
         ));
       }
@@ -435,7 +464,7 @@ export default function ChatPage() {
         if (index >= 0 && next[index].lastMessage?._id === messageId) {
           next[index] = { 
             ...next[index], 
-            lastMessage: { ...next[index].lastMessage, isDeleted: true, body, image: undefined, audio: undefined } 
+            lastMessage: { ...next[index].lastMessage, isDeleted: true, body, image: undefined, video: undefined, audio: undefined } 
           };
         }
         return next;
@@ -978,7 +1007,7 @@ export default function ChatPage() {
 
   async function sendMessage(event) {
     if (event) event.preventDefault();
-    if ((!draft.trim() && !imageFile && !audioBlob) || !activeConversation || !canPostInChannel) {
+    if ((!draft.trim() && !imageFile && !videoFile && !audioBlob) || !activeConversation || !canPostInChannel) {
       return;
     }
 
@@ -988,9 +1017,11 @@ export default function ChatPage() {
     
     const text = draft;
     const file = imageFile;
+    const video = videoFile;
     const audio = audioBlob;
     setDraft("");
     setImageFile(null);
+    setVideoFile(null);
     setAudioBlob(null);
     setAudioUrl(null);
     setEmojiPickerOpen(false);
@@ -1000,6 +1031,11 @@ export default function ChatPage() {
       let imageUrl = undefined;
       if (file) {
         imageUrl = await uploadFile(file); // assuming we renamed and exported uploadFile
+      }
+
+      let videoUrl = undefined;
+      if (video) {
+        videoUrl = await uploadFile(video);
       }
       
       let uploadedAudioUrl = undefined;
@@ -1012,6 +1048,7 @@ export default function ChatPage() {
       const response = await api.post("/messages", {
         message: text.trim() ? text : undefined,
         image: imageUrl,
+        video: videoUrl,
         audio: uploadedAudioUrl,
         conversationId: activeConversation._id,
       });
@@ -1091,16 +1128,20 @@ export default function ChatPage() {
 
   async function handleAddContactByEmail(e) {
     e.preventDefault();
-    if (!newContactEmail.trim()) return;
+    if (!newContactQuery.trim()) return;
     
     setAddingContact(true);
     setAddContactError("");
     setAddContactSuccess("");
     
     try {
-      await api.post("/users/contacts", { email: newContactEmail.trim() });
+      const identifier = newContactQuery.trim();
+      const payload = identifier.includes("@")
+        ? { email: identifier }
+        : { phone: identifier };
+      await api.post("/users/contacts", payload);
       setAddContactSuccess("Contact added!");
-      setNewContactEmail("");
+      setNewContactQuery("");
       
       // Refresh contacts
       const res = await api.get("/users/contacts");
@@ -1120,13 +1161,23 @@ export default function ChatPage() {
     return title.includes(conversationSearch.toLowerCase());
   });
 
-  const filteredContacts = contacts.filter((entry) =>
-    entry.name.toLowerCase().includes(contactSearch.toLowerCase()) || entry.email.toLowerCase().includes(contactSearch.toLowerCase()),
-  );
+  const filteredContacts = contacts.filter((entry) => {
+    const query = contactSearch.toLowerCase();
+    const email = entry.email || "";
+    const phone = entry.phone || "";
+    return entry.name.toLowerCase().includes(query)
+      || email.toLowerCase().includes(query)
+      || phone.toLowerCase().includes(query);
+  });
 
-  const filteredUsers = allUsers.filter((entry) =>
-    entry.name.toLowerCase().includes(newContactEmail.toLowerCase()) || entry.email.toLowerCase().includes(newContactEmail.toLowerCase()),
-  );
+  const filteredUsers = allUsers.filter((entry) => {
+    const query = newContactQuery.toLowerCase();
+    const email = entry.email || "";
+    const phone = entry.phone || "";
+    return entry.name.toLowerCase().includes(query)
+      || email.toLowerCase().includes(query)
+      || phone.toLowerCase().includes(query);
+  });
 
   const renderMessageStatus = (message) => {
     if ((message.senderId.id || message.senderId._id) !== user.id) return null;
@@ -1316,6 +1367,7 @@ export default function ChatPage() {
                     <span>
                       {conversation.lastMessage?.isDeleted ? "🚫 This message was deleted" : 
                        conversation.lastMessage?.audio ? "🎤 Audio message" : 
+                       conversation.lastMessage?.video ? "🎬 Video" : 
                        conversation.lastMessage?.image ? "📷 Image" : 
                        conversation.lastMessage?.sticker ? "✨ Sticker" : 
                        conversation.lastMessage?.body || "No messages yet"}
@@ -1353,9 +1405,9 @@ export default function ChatPage() {
             <>
               <input
                 className="search-input"
-                placeholder="Search registered users..."
-                value={newContactEmail}
-                onChange={(event) => setNewContactEmail(event.target.value)}
+                placeholder="Search by name, email, or phone..."
+                value={newContactQuery}
+                onChange={(event) => setNewContactQuery(event.target.value)}
                 type="search"
               />
               <div className="list compact">
@@ -1383,7 +1435,7 @@ export default function ChatPage() {
                       )}
                       <div className="list-item-meta">
                         <strong>{targetUser.name}</strong>
-                        <span className="list-item-subtitle">{targetUser.email}</span>
+                        <span className="list-item-subtitle">{targetUser.email || targetUser.phone}</span>
                       </div>
                     </div>
                   </button>
@@ -1426,7 +1478,7 @@ export default function ChatPage() {
                       )}
                       <div className="list-item-meta">
                         <strong>{targetUser.name}</strong>
-                        <span className="list-item-subtitle">{targetUser.email}</span>
+                        <span className="list-item-subtitle">{targetUser.email || targetUser.phone}</span>
                       </div>
                     </div>
                   </button>
@@ -1621,6 +1673,15 @@ export default function ChatPage() {
                         />
                       </div>
                     )}
+                    {message.video && (
+                      <div className="message-media">
+                        <video
+                          className="message-video"
+                          controls
+                          src={resolveMediaUrl(message.video)}
+                        />
+                      </div>
+                    )}
                     {message.body && <div className="message-body">{message.body}</div>}
                     {message.audio && (
                       <div className="message-audio">
@@ -1742,6 +1803,22 @@ export default function ChatPage() {
               </button>
             </div>
           )}
+          {videoFile && (
+            <div className="composer-preview">
+              <video controls src={URL.createObjectURL(videoFile)} />
+              <span>
+                {videoFile.name}
+              </span>
+              <button 
+                type="button" 
+                onClick={() => setVideoFile(null)}
+                disabled={sending}
+                className="composer-preview-remove"
+              >
+                X
+              </button>
+            </div>
+          )}
           {audioUrl && (
             <div className="composer-preview">
               <audio controls src={audioUrl} />
@@ -1771,16 +1848,26 @@ export default function ChatPage() {
             </button>
             <input
               type="file"
-              accept="image/*"
+              accept="image/*,video/*"
               id="file-upload"
               className="composer-file-input"
-              onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                if (!file) return;
+                if (file.type.startsWith("video/")) {
+                  setVideoFile(file);
+                  setImageFile(null);
+                } else {
+                  setImageFile(file);
+                  setVideoFile(null);
+                }
+              }}
             />
             <label 
               htmlFor="file-upload" 
               className={`composer-icon ${(!activeConversation || sending || !canPostInChannel) ? "disabled" : ""}`}
               onClick={() => triggerHaptic(8)}
-              title="Attach image"
+              title="Attach image or video"
             >
               📷
             </label>
@@ -1827,7 +1914,7 @@ export default function ChatPage() {
             <button
               type="submit"
               onClick={() => triggerHaptic(10)}
-              disabled={!activeConversation || sending || isRecording || !canPostInChannel || (!draft.trim() && !imageFile && !audioBlob)}
+              disabled={!activeConversation || sending || isRecording || !canPostInChannel || (!draft.trim() && !imageFile && !videoFile && !audioBlob)}
             >
               {sending ? '...' : 'Send'}
             </button>
