@@ -1,4 +1,7 @@
 ﻿@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   font-family: 'Space Grotesk', "Segoe UI", Tahoma, sans-serif;
@@ -11,25 +14,11 @@
   --bg-message-in: rgba(255, 255, 255, 0.86);
   --bg-message-own: linear-gradient(135deg, #22c1c3, #2f80ed 60%, #5b8cff);
   --bg-input: rgba(255, 255, 255, 0.75);
-.modal.warning {
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  box-shadow: 0 18px 40px -18px rgba(239, 68, 68, 0.6);
-}
   --bg-search: rgba(255, 255, 255, 0.68);
   --bg-hover: rgba(34, 193, 195, 0.12);
   --bg-active: rgba(47, 128, 237, 0.18);
 
   --text-primary: #1f2937;
-.modal-button.danger {
-  background: #ef4444;
-  color: white;
-}
-
-.warning-text {
-  margin: 0;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
   --text-secondary: #6b7280;
   --text-own-message: #ffffff;
   --text-in-message: #1f2937;
@@ -471,6 +460,19 @@ body {
   text-overflow: ellipsis;
 }
 
+.conversation-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.conversation-time {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
 /* Unread Badge */
 .unread-badge {
   background: var(--primary-color);
@@ -643,6 +645,49 @@ body {
   font-weight: 700; 
   color: var(--text-primary); 
   font-family: 'Unbounded', 'Space Grotesk', sans-serif;
+}
+
+.chat-header-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-header-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.chat-header-meta h3 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-header-status {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header-icon {
+  font-size: 1rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+}
+
+.header-avatar {
+  width: 40px;
+  height: 40px;
 }
 
 .channel-settings-button {
@@ -1061,6 +1106,33 @@ body {
   border: 1px solid var(--border-color);
 }
 
+[data-theme="dark"] .sticker-panel,
+[data-theme="dark"] .emoji-panel {
+  background: rgba(18, 23, 36, 0.82);
+}
+
+.emoji-panel {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 0.4rem;
+  padding: 0.75rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid var(--border-color);
+}
+
+.emoji-panel button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.emoji-panel button:hover {
+  transform: translateY(-2px);
+}
+
 .sticker-item {
   width: 64px;
   height: 64px;
@@ -1159,6 +1231,17 @@ body {
   gap: 15px;
   border: var(--glass-border);
   box-shadow: var(--shadow-lg);
+}
+
+.modal.warning {
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  box-shadow: 0 18px 40px -18px rgba(239, 68, 68, 0.6);
+}
+
+.warning-text {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 .modal-title {
@@ -1391,6 +1474,11 @@ body {
   border: none;
   border-radius: 8px;
   cursor: pointer;
+}
+
+.modal-button.danger {
+  background: #ef4444;
+  color: white;
 }
 
 .modal-button.primary {

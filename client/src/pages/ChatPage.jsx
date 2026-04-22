@@ -50,6 +50,7 @@ export default function ChatPage() {
 
   // Search state
   const [contactSearch, setContactSearch] = useState("");
+  const [conversationSearch, setConversationSearch] = useState("");
   const [newContactEmail, setNewContactEmail] = useState("");
   const [addingContact, setAddingContact] = useState(false);
   const [addContactError, setAddContactError] = useState("");
@@ -74,6 +75,7 @@ export default function ChatPage() {
   const [channelImageFile, setChannelImageFile] = useState(null);
   const [channelReadOnly, setChannelReadOnly] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [reactionPickerId, setReactionPickerId] = useState(null);
   const [showChannelSettings, setShowChannelSettings] = useState(false);
   const [channelSettingsName, setChannelSettingsName] = useState("");
@@ -104,6 +106,12 @@ export default function ChatPage() {
     const stored = localStorage.getItem("chat-haptics");
     return stored === null ? true : stored === "true";
   });
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    const stored = localStorage.getItem("chat-sound");
+    return stored === null ? true : stored === "true";
+  });
+  const audioContextRef = useRef(null);
+  const lastSoundRef = useRef(0);
 
   const baseUrl = useMemo(
     () => import.meta.env.VITE_API_URL?.replace(/\/api$/, "") || "http://localhost:5000",
@@ -114,6 +122,46 @@ export default function ChatPage() {
     if (!path) return "";
     if (path.startsWith("http") || path.startsWith("blob:") || path.startsWith("data:")) return path;
     return `${baseUrl}${path}`;
+  };
+
+  const formatLastSeen = (value) => {
+    if (!value) return "Offline";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Offline";
+    const diff = Date.now() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return "Just now";
+    if (minutes < 60) return `Last seen ${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `Last seen ${hours}h ago`;
+    return `Last seen ${date.toLocaleDateString()}`;
+  };
+
+  const playNotificationSound = () => {
+    if (!soundEnabled) return;
+    const now = Date.now();
+    if (now - lastSoundRef.current < 800) return;
+    lastSoundRef.current = now;
+
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioContextRef.current;
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      oscillator.type = "sine";
+      oscillator.frequency.value = 640;
+      gain.gain.value = 0.08;
+
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.12);
+    } catch (error) {
+      // Ignore sound failures silently.
+    }
   };
 
   const stickerOptions = useMemo(
@@ -178,6 +226,7 @@ export default function ChatPage() {
 
   const toggleTheme = () => {
     setStickerPickerOpen(false);
+    setEmojiPickerOpen(false);
     setTheme(prev => prev === "light" ? "dark" : "light");
   };
 
@@ -194,6 +243,10 @@ export default function ChatPage() {
   useEffect(() => {
     localStorage.setItem("chat-haptics", String(hapticsEnabled));
   }, [hapticsEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem("chat-sound", String(soundEnabled));
+  }, [soundEnabled]);
 
   const bumpConversation = (conversationId) => {
     setBumpConversationId(conversationId);
@@ -262,6 +315,9 @@ export default function ChatPage() {
 
     socket.on("receive-message", (message) => {
       const shouldAutoScroll = isAtBottomRef.current;
+      if (message.senderId?._id !== user.id && message.senderId?.id !== user.id) {
+        playNotificationSound();
+      }
       if (message.conversationId === activeConversation?._id) {
         setStickerPickerOpen(false);
         setReactionPickerId(null);
@@ -881,6 +937,12 @@ export default function ChatPage() {
     }
   };
 
+  const insertEmoji = (emoji) => {
+    if (!canPostInChannel) return;
+    setDraft((current) => `${current}${emoji}`);
+    setEmojiPickerOpen(false);
+  };
+
   const scrollToBottom = () => {
     if (messageStreamRef.current) {
       messageStreamRef.current.scrollTop = messageStreamRef.current.scrollHeight;
@@ -931,6 +993,7 @@ export default function ChatPage() {
     setImageFile(null);
     setAudioBlob(null);
     setAudioUrl(null);
+    setEmojiPickerOpen(false);
     setShowNewMessagePill(false);
 
     try {
@@ -1051,6 +1114,12 @@ export default function ChatPage() {
     }
   }
 
+  const filteredConversations = conversations.filter((conversation) => {
+    if (!conversationSearch.trim()) return true;
+    const title = getConversationTitle(conversation, user.id).toLowerCase();
+    return title.includes(conversationSearch.toLowerCase());
+  });
+
   const filteredContacts = contacts.filter((entry) =>
     entry.name.toLowerCase().includes(contactSearch.toLowerCase()) || entry.email.toLowerCase().includes(contactSearch.toLowerCase()),
   );
@@ -1076,6 +1145,8 @@ export default function ChatPage() {
 
   const handleOpenConversation = (conversation) => {
     setActiveConversation(conversation);
+    setStickerPickerOpen(false);
+    setEmojiPickerOpen(false);
     if (window.innerWidth < 900) {
       setIsMobileChatOpen(true);
       triggerHaptic(12);
@@ -1100,6 +1171,30 @@ export default function ChatPage() {
     [pinnedMessages],
   );
 
+  const activePartner = useMemo(() => {
+    if (!activeConversation || activeConversation.isGroup || activeConversation.type === "group" || activeConversation.type === "channel") {
+      return null;
+    }
+    return activeConversation.users.find(
+      (member) => (member._id || member.id) !== user.id,
+    );
+  }, [activeConversation, user.id]);
+
+  const activePartnerOnline = activePartner
+    ? onlineUserIds.has(activePartner._id || activePartner.id) || activePartner.isOnline
+    : false;
+
+  const typingDisplayNames = useMemo(() => {
+    if (!activeConversation) return [];
+    const activeIds = new Set(Array.from(typingUsers));
+    return activeConversation.users
+      .filter((member) => {
+        const id = member._id || member.id;
+        return id && id !== user.id && activeIds.has(id);
+      })
+      .map((member) => member.name || "Someone");
+  }, [activeConversation, typingUsers, user.id]);
+
   const channelMemberOptions = useMemo(
     () => (contacts.length ? contacts : allUsers),
     [contacts, allUsers],
@@ -1120,6 +1215,18 @@ export default function ChatPage() {
   }, [activeConversation?.channelAdminIds, user.id]);
 
   const canPostInChannel = !isChannel || !activeConversation?.isReadOnly || isChannelOwner || isChannelAdmin;
+
+  const headerSubtitle = useMemo(() => {
+    if (!activeConversation) return "Select a conversation";
+    if (activeConversation.type === "channel") {
+      return activeConversation.isReadOnly ? "Read-only channel" : "Channel";
+    }
+    if (activeConversation.isGroup || activeConversation.type === "group") {
+      return `${activeConversation.users.length} members`;
+    }
+    if (activePartnerOnline) return "Online";
+    return formatLastSeen(activePartner?.lastSeen);
+  }, [activeConversation, activePartner?.lastSeen, activePartnerOnline]);
 
   if (!user) {
     return null;
@@ -1177,8 +1284,15 @@ export default function ChatPage() {
               New channel
             </button>
           </h3>
+          <input
+            className="search-input"
+            placeholder="Search conversations"
+            value={conversationSearch}
+            onChange={(event) => setConversationSearch(event.target.value)}
+            type="search"
+          />
           <div className="list">
-            {conversations.map((conversation) => {
+            {filteredConversations.map((conversation) => {
               const isOtherUserOnline = conversation.isGroup
                 ? false
                 : conversation.users.some(
@@ -1198,13 +1312,20 @@ export default function ChatPage() {
                       <div className="presence-dot" title="Online" />
                     )}
                   </div>
-                  <span>
-                    {conversation.lastMessage?.isDeleted ? "🚫 This message was deleted" : 
-                     conversation.lastMessage?.audio ? "🎤 Audio message" : 
-                     conversation.lastMessage?.image ? "📷 Image" : 
-                     conversation.lastMessage?.sticker ? "✨ Sticker" : 
-                     conversation.lastMessage?.body || "No messages yet"}
-                  </span>
+                  <div className="conversation-meta">
+                    <span>
+                      {conversation.lastMessage?.isDeleted ? "🚫 This message was deleted" : 
+                       conversation.lastMessage?.audio ? "🎤 Audio message" : 
+                       conversation.lastMessage?.image ? "📷 Image" : 
+                       conversation.lastMessage?.sticker ? "✨ Sticker" : 
+                       conversation.lastMessage?.body || "No messages yet"}
+                    </span>
+                    {conversation.lastMessage?.createdAt && (
+                      <small className="conversation-time">
+                        {new Date(conversation.lastMessage.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </small>
+                    )}
+                  </div>
                   {conversation.unreadCount > 0 && (
                     <div className="unread-count">
                       {conversation.unreadCount}
@@ -1334,19 +1455,45 @@ export default function ChatPage() {
           >
             ←
           </button>
-          <h3>
-            {activeConversation ? getConversationTitle(activeConversation, user.id) : "Select a conversation"}
-          </h3>
-          {isChannel && (isChannelOwner || isChannelAdmin) && (
-            <button
-              type="button"
-              className="ghost channel-settings-button"
-              onClick={() => setShowChannelSettings(true)}
-              title="Channel settings"
-            >
-              ⚙️
+          <div className="chat-header-content">
+            {activePartner?.image ? (
+              <img
+                src={resolveMediaUrl(activePartner.image)}
+                alt="avatar"
+                className="avatar header-avatar"
+              />
+            ) : (
+              <div className="avatar avatar-fallback primary header-avatar">
+                {(activePartner?.name || activeConversation?.name || "?").charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="chat-header-meta">
+              <h3>
+                {activeConversation ? getConversationTitle(activeConversation, user.id) : "Select a conversation"}
+              </h3>
+              <span className="chat-header-status">
+                {headerSubtitle}
+              </span>
+            </div>
+          </div>
+          <div className="chat-header-actions">
+            <button type="button" className="ghost header-icon" title="Voice call">
+              📞
             </button>
-          )}
+            <button type="button" className="ghost header-icon" title="Video call">
+              🎥
+            </button>
+            {isChannel && (isChannelOwner || isChannelAdmin) && (
+              <button
+                type="button"
+                className="ghost channel-settings-button"
+                onClick={() => setShowChannelSettings(true)}
+                title="Channel settings"
+              >
+                ⚙️
+              </button>
+            )}
+          </div>
         </header>
 
         <div className="chat-body">
@@ -1535,9 +1682,11 @@ export default function ChatPage() {
               </div>
             </Fragment>
           ))}
-            {activeConversation && Array.from(typingUsers).filter(id => activeConversation.users.some(u => (u._id || u.id) === id)).length > 0 && (
+            {activeConversation && typingDisplayNames.length > 0 && (
               <div className="message typing-indicator">
-                Someone is typing...
+                {typingDisplayNames.length > 1
+                  ? `${typingDisplayNames.slice(0, 2).join(" & ")} are typing...`
+                  : `${typingDisplayNames[0]} is typing...`}
               </div>
             )}
           </div>
@@ -1550,6 +1699,19 @@ export default function ChatPage() {
         </div>
 
         <form className="composer composer-stack" onSubmit={sendMessage}>
+          {emojiPickerOpen && (
+            <div className="emoji-panel">
+              {emojiOptions.map((emoji) => (
+                <button
+                  key={`composer-${emoji}`}
+                  type="button"
+                  onClick={() => insertEmoji(emoji)}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
           {stickerPickerOpen && (
             <div className="sticker-panel">
               {stickerOptions.map((sticker) => (
@@ -1594,6 +1756,19 @@ export default function ChatPage() {
             </div>
           )}
           <div className="composer-row">
+            <button
+              type="button"
+              className={`composer-icon ${(!activeConversation || sending || !canPostInChannel) ? "disabled" : ""}`}
+              onClick={() => {
+                if (!activeConversation || sending || !canPostInChannel) return;
+                triggerHaptic(8);
+                setEmojiPickerOpen((current) => !current);
+                setStickerPickerOpen(false);
+              }}
+              title="Emoji"
+            >
+              😊
+            </button>
             <input
               type="file"
               accept="image/*"
@@ -1615,6 +1790,7 @@ export default function ChatPage() {
               onClick={() => {
                 if (!activeConversation || sending || !canPostInChannel) return;
                 triggerHaptic(8);
+                setEmojiPickerOpen(false);
                 setStickerPickerOpen((current) => !current);
               }}
               title="Stickers"
@@ -1705,6 +1881,20 @@ export default function ChatPage() {
                   type="checkbox"
                   checked={hapticsEnabled}
                   onChange={(event) => setHapticsEnabled(event.target.checked)}
+                />
+                <span className="toggle-slider" />
+              </label>
+            </div>
+            <div className="modal-field toggle-row">
+              <div>
+                <label className="toggle-label">Sound</label>
+                <span className="toggle-hint">Play a sound on new messages</span>
+              </div>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={soundEnabled}
+                  onChange={(event) => setSoundEnabled(event.target.checked)}
                 />
                 <span className="toggle-slider" />
               </label>

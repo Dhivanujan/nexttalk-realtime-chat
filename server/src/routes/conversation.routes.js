@@ -10,7 +10,7 @@ const conversationRouter = Router();
 conversationRouter.get("/", requireAuth, async (req, res) => {
   try {
     const conversations = await Conversation.find({ users: req.userId })
-      .populate("users", "name email image bio isOnline")
+      .populate("users", "name email image bio isOnline lastSeen")
       .populate({ path: "lastMessage", populate: { path: "senderId", select: "name email image" } })
       .sort({ updatedAt: -1 })
       .lean(); // Use lean to easily add virtual properties
@@ -71,7 +71,7 @@ conversationRouter.post("/", requireAuth, async (req, res) => {
       });
 
       const populated = await Conversation.findById(conversation._id)
-        .populate("users", "name email image bio isOnline")
+        .populate("users", "name email image bio isOnline lastSeen")
         .populate("lastMessage");
 
       res.status(201).json(populated);
@@ -113,7 +113,7 @@ conversationRouter.post("/", requireAuth, async (req, res) => {
       $or: [{ type: "direct" }, { type: { $exists: false } }],
       users: { $all: [new Types.ObjectId(req.userId), new Types.ObjectId(userId)] },
     })
-      .populate("users", "name email image bio isOnline")
+      .populate("users", "name email image bio isOnline lastSeen")
       .populate("lastMessage");
 
     if (existing) {
@@ -130,7 +130,7 @@ conversationRouter.post("/", requireAuth, async (req, res) => {
     });
 
     const populated = await Conversation.findById(newConversation._id)
-      .populate("users", "name email image bio isOnline")
+      .populate("users", "name email image bio isOnline lastSeen")
       .populate("lastMessage");
 
     res.status(201).json(populated);
@@ -459,7 +459,7 @@ conversationRouter.patch("/:conversationId/channel-settings", requireAuth, async
     await conversation.save();
 
     const populated = await Conversation.findById(conversation._id)
-      .populate("users", "name email image bio isOnline")
+      .populate("users", "name email image bio isOnline lastSeen")
       .populate("lastMessage");
 
     res.json(populated);
