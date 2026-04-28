@@ -119,6 +119,8 @@ export default function ChatPage() {
     [],
   );
 
+  const socket = useMemo(() => getSocket(), []);
+
   const resolveMediaUrl = (path) => {
     if (!path) return "";
     if (path.startsWith("http") || path.startsWith("blob:") || path.startsWith("data:")) return path;
@@ -261,7 +263,21 @@ export default function ChatPage() {
       setBumpConversationId((current) => (current === conversationId ? null : current));
     }, 420);
   };
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    (async () => {
+      const [contactsResponse, allUsersResponse, conversationResponse] = await Promise.all([
+        api.get("/users/contacts"),
+        api.get("/users"),
+        api.get("/conversations"),
+      ]);
+
+      setContacts(contactsResponse.data);
       setAllUsers(allUsersResponse.data);
+      setConversations(conversationResponse.data);
 
       if (!socket.connected) socket.connect();
 
@@ -278,16 +294,16 @@ export default function ChatPage() {
     });
 
     // Request Push Notification Subscription
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
-      navigator.serviceWorker.register('/service-worker.js').then(async (registration) => {
+    if ("serviceWorker" in navigator && "PushManager" in window) {
+      navigator.serviceWorker.register("/service-worker.js").then(async (registration) => {
         try {
           const publicVapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
           if (!publicVapidKey) return;
-          
+
           // Helper to convert base64 to Uint8Array
           const urlBase64ToUint8Array = (base64String) => {
-            const padding = '='.repeat((4 - base64String.length % 4) % 4);
-            const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+            const padding = "=".repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/\-/g, "+").replace(/_/g, "/");
             const rawData = window.atob(base64);
             const outputArray = new Uint8Array(rawData.length);
             for (let i = 0; i < rawData.length; ++i) {
@@ -298,16 +314,16 @@ export default function ChatPage() {
 
           const subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+            applicationServerKey: urlBase64ToUint8Array(publicVapidKey),
           });
-          
-          await api.post('/users/push/subscribe', { subscription });
+
+          await api.post("/users/push/subscribe", { subscription });
         } catch (err) {
           console.log("Could not subscribe to push notifications", err);
         }
       });
     }
-  }, [user]);
+  }, [user, socket]);
 
   useEffect(() => {
     if (!user) {
